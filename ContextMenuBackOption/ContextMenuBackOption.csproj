@@ -39,9 +39,14 @@
     <Reference Include="ResoniteHotReloadLib">
       <HintPath>$(ResonitePath)rml_libs\ResoniteHotReloadLib.dll</HintPath>
     </Reference>
-    
+
     <Reference Include="Elements.Core">
       <HintPath>$(ResonitePath)Resonite_Data\Managed\Elements.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+
+    <Reference Include="Elements.Assets">
+      <HintPath>$(ResonitePath)Resonite_Data\Managed\Elements.Assets.dll</HintPath>
       <Private>False</Private>
     </Reference>
 	</ItemGroup>

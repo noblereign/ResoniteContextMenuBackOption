@@ -6,7 +6,6 @@ using FrooxEngine;
 using HarmonyLib;
 using ResoniteModLoader;
 using ResoniteHotReloadLib;
-using System.Xml.Linq;
 using FrooxEngine.UIX;
 
 namespace ContextMenuBackOption;
@@ -24,6 +23,8 @@ public class ContextMenuBackOption : ResoniteMod {
 	public static readonly ModConfigurationKey<bool> Enabled = new("Enabled", "Enables the mod. Pretty self explanatory!", () => true);
 	public static readonly ModConfigurationKey<bool> ShowOnBuiltIn = new("Show on built-in submenus", "Should the Back option show up on built-in submenus? (e.g. the Locomotion submenu)", () => false);
 	public static readonly ModConfigurationKey<bool> ShowOnSingleItemMenus = new("Show on single item menus", "Should the Back option show up on single item menus? Turning this on may break some systems that rely on having only one button present (for example, certain context menu sliders).", () => false);
+	public static readonly ModConfigurationKey<bool> AlternateDesign = new("Alternate Design", "Instead of adding a back option, adds a new button between the empty space in the context menu.", () => false);
+	//Alternate design suggested by U-PearPaw
 
 	public static ModConfiguration? Config;
 
@@ -75,14 +76,81 @@ public class ContextMenuBackOption : ResoniteMod {
 		Msg("Clicked, removing entries...");
 		PreviousMenus.RemoveRange(0, 2);
 	}
+	private static Slot? TryFancyButton(User user, ContextMenu menu) {
+		Slot? RadialMenu = menu.Slot.FindChild("Radial Menu", false, false, 2);
+		if (RadialMenu != null) {
+			Slot? FancyButton = RadialMenu.FindChild("CtxMenuBack", false, false, 1);
+			if (FancyButton == null) { // There's probably a way to do this 100,000,000x better but I dunno how so :3
+				if (true == true) { //TODO: Add setting here
+					FancyButton = RadialMenu.AddSlot();
+					RectTransform rectTransform = FancyButton.AttachComponent<RectTransform>();
+					rectTransform.AnchorMin.Value = new float2(0.25f, 0.25f);
+					rectTransform.AnchorMax.Value = new float2(0.75f, 0.75f);
+					OutlinedArc outlinedArc = FancyButton.AttachComponent<OutlinedArc>();
+
+					UI_CircleSegment arcMaterial = FancyButton.AttachComponent<UI_CircleSegment>();
+					arcMaterial.ZWrite.Value = ZWrite.On;
+					arcMaterial.OffsetFactor.Value = 1f;
+					arcMaterial.OffsetUnits.Value = 100f;
+					arcMaterial.Overlay.Value = true;
+					arcMaterial.ZTest.Value = ZTest.Always;
+
+					outlinedArc.Arc.Value = 80f;
+					outlinedArc.Offset.Value = 230f;
+					outlinedArc.InnerRadiusRatio.Value = 0.6f;
+					outlinedArc.OuterRadiusRatio.Value = 1f;
+					outlinedArc.RoundedCornerRadius.Value = 14f;
+					outlinedArc.OutlineThickness.Value = 2f;
+					outlinedArc.Material.Target = arcMaterial;
+
+					Button button = FancyButton.AttachComponent<Button>();
+					button.RequireInitialPress.Value = false;
+					button.PassThroughHorizontalMovement.Value = false;
+					button.PassThroughVerticalMovement.Value = false;
+
+					InteractionElement.ColorDriver colorDriver = button.ColorDrivers.Add();
+					InteractionElement.ColorDriver colorDriver2 = button.ColorDrivers.Add();
+					colorDriver.ColorDrive.Target = outlinedArc.FillColor;
+					colorDriver2.ColorDrive.Target = outlinedArc.OutlineColor;
+					colorX c = RadiantUI_Constants.Neutrals.DARK;
+					colorDriver.SetColors(in c);
+					c = RadiantUI_Constants.Neutrals.LIGHT;
+					colorDriver2.SetColors(in c);
+
+					//UIBuilder.SetupButtonColor(button, outlinedArc);
+
+					Slot ButtonIcon = FancyButton.AddSlot("Icon");
+					RectTransform rectTransform2 = ButtonIcon.AttachComponent<RectTransform>();
+					rectTransform2.AnchorMin.Value = new float2(0f, 0.025f);
+					rectTransform2.AnchorMax.Value = new float2(1f, 0.175f);
+					
+					UI_UnlitMaterial imageMaterial = ButtonIcon.AttachComponent<UI_UnlitMaterial>();
+
+					SpriteProvider spriteProvider = ButtonIcon.AttachComponent<SpriteProvider>();
+					StaticTexture2D texture = ButtonIcon.AttachComponent<StaticTexture2D>();
+					texture.URL.Value = new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png");
+					spriteProvider.Texture.Target = texture;
+
+					Image image = ButtonIcon.AttachComponent<Image>();
+					image.Sprite.Target = spriteProvider;
+					image.Material.Target = imageMaterial;
+				}
+			} else if (true == false) { //TODO: Add setting here
+				FancyButton.Destroy();
+				return null;
+			}
+			return FancyButton;
+		}
+		return null;
+	}
 
 	[HarmonyPatch(typeof(InteractionHandler), "OpenContextMenu")]
 	class ContextMenuOpenRootPatch {
 		public static bool Prefix(InteractionHandler __instance, InteractionHandler.MenuOptions options) { // This one fires for Context Menu Root as well as the built-in ones (e.g. Locomotion, Grab Type)
-			if (options == InteractionHandler.MenuOptions.Default || (Config!.GetValue(ShowOnBuiltIn) == false)) {
+			/*if (options == InteractionHandler.MenuOptions.Default || (Config!.GetValue(ShowOnBuiltIn) == false)) {
 				Msg("Context menu root opened, clear previous menus");
 				PreviousMenus.Clear();
-			}
+			}*/
 			return true;
 		}
 	}
@@ -98,6 +166,9 @@ public class ContextMenuBackOption : ResoniteMod {
 						while ((menu._lerp.Value > 0f) && menu != null) {
 							await default(NextUpdate);
 						}
+
+						Slot? FancyButton = TryFancyButton(user, menu);
+
 						//TODO: Options will tell if hidden, should we save hiddens?
 						if (menu != null) {
 							Slot itemRoot = menu._itemsRoot.Target;
@@ -135,20 +206,23 @@ public class ContextMenuBackOption : ResoniteMod {
 									}
 								}
 
-								Msg("Made it past");
 								if (Button == null) {
 									Msg("Making own back button...");
-									ContextMenuItem MenuItem = menu.AddItem("Back (Modded)", new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"), colorX.White);
+									if (false == true) { //TODO: Replace with alt design check
+										ContextMenuItem MenuItem = menu.AddItem("Back (Modded)", new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"), colorX.White);
 
-									Slot MenuSlot = MenuItem.Slot;
-									MenuSlot.Tag = "BackOption";
-									MenuSlot.OrderOffset = -10000;
+										Slot MenuSlot = MenuItem.Slot;
+										MenuSlot.Tag = "BackOption";
+										MenuSlot.OrderOffset = -10000;
 
-									Button = MenuItem.Button;
+										Button = MenuItem.Button;
 
-									if (PreviousMenus.Count > 1) {
-										ButtonPressEventRelay BackRelay = MenuSlot.AttachComponent<ButtonPressEventRelay>();
-										BackRelay.Target.Value = PreviousMenus[1].ReferenceID;
+										if (PreviousMenus.Count > 1) {
+											ButtonPressEventRelay BackRelay = MenuSlot.AttachComponent<ButtonPressEventRelay>();
+											BackRelay.Target.Value = PreviousMenus[1].ReferenceID;
+										}
+									} else {
+
 									}
 								}
 
