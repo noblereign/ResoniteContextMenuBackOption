@@ -87,7 +87,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			Msg(user);
 			Msg("menu:");
 			Msg(menu);
-			Tuple<Slot, Button>? FancyItems = TryFancyButton(user, menu);
+			Tuple<Slot, Button>? FancyItems = TryFancyButton(menu);
 			Slot? FancyButton = null;
 			IButton? Button = null;
 			Msg("Tried!");
@@ -278,7 +278,7 @@ public class ContextMenuBackOption : ResoniteMod {
 		return FancyButton;
 	}
 
-	private static Tuple<Slot, Button>? TryFancyButton(User user, ContextMenu menu) {
+	private static Tuple<Slot, Button>? TryFancyButton(ContextMenu menu) {
 		Slot? RadialMenu = menu.Slot.FindChild("Radial Menu", false, false, 2);
 		if (RadialMenu != null) {
 			Msg("Found radial, now look for button");
@@ -346,6 +346,44 @@ public class ContextMenuBackOption : ResoniteMod {
 		Msg("Truly null");
 		return null;
 	}
+	static void UpdateFancyButtonVisuals(ContextMenu ctx) {
+		Slot? RadialMenu = ctx.Slot.FindChild("Radial Menu", false, false, 2);
+		if (RadialMenu != null) {
+			Slot? FancyButton = RadialMenu.FindChild("CtxMenuBack", false, false, 1);
+			if (FancyButton != null) {
+				Slot? FancyButtonIcon = FancyButton.FindChild("Icon", false, false, 1);
+				if (FancyButtonIcon != null) {
+					Slot? CenterCircle = RadialMenu.FindChild("Center Circle", false, false, 1); // is there a better way to do this?
+					if (CenterCircle != null) {
+						OutlinedArc fancyArc = FancyButton.GetComponent<OutlinedArc>();
+						RectTransform fancyIconTransform = FancyButtonIcon.GetComponent<RectTransform>();
+						RectTransform centerTransform = CenterCircle.GetComponent<RectTransform>();
+						if (fancyArc != null && centerTransform != null) {
+							float innerLerp = 0;
+							if (ctx._innerLerp != null) {
+								innerLerp = ctx._innerLerp.Value;
+							}
+							if (innerLerp >= 0) {
+								fancyArc.InnerRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .675f, .6f) + MathX.Remap(innerLerp, 0f, 1f, 0f, .2f);
+								fancyArc.OuterRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .925f, 1f);
+								fancyArc.Arc.Value = MathX.Remap(innerLerp, 0f, 1f, 80f, 40f);
+								fancyArc.Offset.Value = MathX.Remap(innerLerp, 0f, 1f, 230f, 250f);
+								fancyIconTransform.AnchorMin.Value = new float2(0f, 0.025f);
+								fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, 0f, 1f, 1f, 1f), MathX.Remap(innerLerp, 0f, 1f, 0.175f, 0.075f));
+							} else {
+								fancyArc.InnerRadiusRatio.Value = .6f;
+								fancyArc.OuterRadiusRatio.Value = 1f;
+								fancyArc.Arc.Value = MathX.Remap(innerLerp, -1f, 0f, 0f, 80f);
+								fancyArc.Offset.Value = MathX.Remap(innerLerp, -1f, 0f, 270f, 230f);
+								fancyIconTransform.AnchorMin.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 0f, 0f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.025f));
+								fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 1f, 1f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.175f));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	[HarmonyPatch(typeof(InteractionHandler), "OpenContextMenu")]
 	class ContextMenuOpenRootPatch {
@@ -360,7 +398,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					PreviousMenus.Insert(0, __instance.LocalUser.GetUserContextMenu().Slot); // Use context menu slot as placeholder for "Root Menu"
 					__state = true;
 				}
-				Tuple<Slot, Button>? FancyItems = TryFancyButton(__instance.LocalUser, __instance.LocalUser.GetUserContextMenu());
+				Tuple<Slot, Button>? FancyItems = TryFancyButton(__instance.LocalUser.GetUserContextMenu());
 				if (FancyItems != null) {
 					FancyItems.Item1.ActiveSelf = (PreviousMenus.Count > 0);
 				}
@@ -394,7 +432,7 @@ public class ContextMenuBackOption : ResoniteMod {
 						await HandleButtonAfterAnimation(menu, user, summoner, pointer, options);
 					}
 				} else {
-					TryFancyButton(user, user.GetUserContextMenu());
+					TryFancyButton(user.GetUserContextMenu());
 				}
 			}
 		}
@@ -412,6 +450,19 @@ public class ContextMenuBackOption : ResoniteMod {
 				Msg("There are " + PreviousMenus.Count + " pages to go back to.");
 			}
 			return true;
+		}
+	}
+
+	[HarmonyPatch(typeof(ContextMenu), "OnCommonUpdate")]
+	class ContextMenuUpdatePatch {
+		public static void Postfix(ContextMenu __instance) { // For animating the fancy button properly.
+			if (__instance.IsUnderLocalUser) {
+				if (Config!.GetValue(Enabled) && Config!.GetValue(AlternateDesign)) {
+					if (__instance.IsVisible) {
+						UpdateFancyButtonVisuals(__instance);
+					}
+				}
+			}
 		}
 	}
 }
