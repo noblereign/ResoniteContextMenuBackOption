@@ -7,7 +7,6 @@ using HarmonyLib;
 using ResoniteModLoader;
 using ResoniteHotReloadLib;
 using FrooxEngine.UIX;
-using Elements.Assets;
 using System.Threading.Tasks;
 
 namespace ContextMenuBackOption;
@@ -299,17 +298,11 @@ public class ContextMenuBackOption : ResoniteMod {
 		rectTransform.AnchorMax.Value = new float2(0.75f, 0.75f);
 		OutlinedArc outlinedArc = FancyButton.AttachComponent<OutlinedArc>();
 
-		/*UI_CircleSegment arcMaterial = FancyButton.AttachComponent<UI_CircleSegment>();
-		arcMaterial.ZWrite.Value = ZWrite.On;
-		arcMaterial.OffsetFactor.Value = 1f;
-		arcMaterial.OffsetUnits.Value = 100f;
-		arcMaterial.Overlay.Value = true;
-		arcMaterial.ZTest.Value = ZTest.Always;*/
 		UI_CircleSegment arcMaterial = RadialMenu.Parent.Parent.GetComponent<UI_CircleSegment>();
 
 		outlinedArc.Arc.Value = 80f;
 		outlinedArc.Offset.Value = 230f;
-		outlinedArc.InnerRadiusRatio.Value = 0.6f; // .8f when middle circle is big..  hide when middle circle clicked
+		outlinedArc.InnerRadiusRatio.Value = 0.6f;
 		outlinedArc.OuterRadiusRatio.Value = 1f;
 		outlinedArc.RoundedCornerRadius.Value = 14f;
 		outlinedArc.OutlineThickness.Value = 2f;
@@ -320,7 +313,6 @@ public class ContextMenuBackOption : ResoniteMod {
 		rectTransform2.AnchorMin.Value = new float2(0f, 0.025f);
 		rectTransform2.AnchorMax.Value = new float2(1f, 0.175f);
 
-		//UI_UnlitMaterial imageMaterial = ButtonIcon.AttachComponent<UI_UnlitMaterial>();
 		UI_UnlitMaterial imageMaterial = RadialMenu.Parent.Parent.GetComponent<UI_UnlitMaterial>();
 
 		SpriteProvider spriteProvider = ButtonIcon.AttachComponent<SpriteProvider>();
