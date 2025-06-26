@@ -126,7 +126,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					return;
 				}
 			}
-
+			
 			if (FancyButton != null) {
 				FancyButton.ActiveSelf = (PreviousMenus.Count > 0);
 			}
@@ -475,6 +475,19 @@ public class ContextMenuBackOption : ResoniteMod {
 				}); 
 				Debug("Button handled.");
 			}
+		}
+	}
+
+	[HarmonyPatch(typeof(ContextMenuExtensions), "ContextMenuConfirm")]
+	class ContextMenuConfirmActionPatch {
+		public static bool Prefix(User user, IWorldElement summoner, Slot pointer, LocaleString actionName, Uri actionIcon, colorX actionColor, ButtonEventHandler actionCallback, bool hidden = false) { // This fires for actions that require confirmation (e.g. entering an anchor, equipping an avatar/tool...)
+			if (user.IsLocalUser) {
+				if (Config!.GetValue(Enabled) == true) {
+					Msg("Confirmation opened, clear previous pages");
+					PreviousMenus.Clear();
+				}
+			}
+			return true;
 		}
 	}
 
