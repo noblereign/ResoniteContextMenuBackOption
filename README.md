@@ -9,9 +9,12 @@ If a submenu has an existing back button, it will be prioritized compared to the
 There's also an alternate design in the mod settings to place the back button below the inner circle, saving space.
 
 ## Screenshots
-<!-- If your mod has visible effects in the game, attach some images or video of it in-use here! Otherwise remove this section -->
+
+# Default design
 ![Screenshot of the default behavior, a new "Back > Home" option is present as a button in the context menu.](/imgs/default.png)
-![Screenshot of the alternate behavior, a small back button is added to the context menu, below the inner circle.](/imgs/default.png)
+
+# Alternate design
+![Screenshot of the alternate behavior, a small back button is added to the context menu, below the inner circle.](/imgs/alternate.png)
 
 ## Installation
 1. Install [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader).
