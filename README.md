@@ -10,10 +10,10 @@ There's also an alternate design in the mod settings to place the back button be
 
 ## Screenshots
 
-# Default design
+### Default design
 ![Screenshot of the default behavior, a new "Back > Home" option is present as a button in the context menu.](/imgs/default.png)
 
-# Alternate design
+### Alternate design
 ![Screenshot of the alternate behavior, a small back button is added to the context menu, below the inner circle.](/imgs/alternate.png)
 
 ## Installation
