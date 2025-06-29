@@ -13,7 +13,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "1.0.0";
+	internal const string VERSION_CONSTANT = "1.0.1";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -145,7 +145,7 @@ public class ContextMenuBackOption : ResoniteMod {
 						}
 					}
 
-					if (Config!.GetValue(AlternateDesign) && existingButton != null) {
+					if (existingButton != null) {
 						Debug("Finding arc layout");
 						Slot? ArcLayout = menu.Slot.FindChild("ArcLayout", false, false, 3);
 						RefID existingRef = existingButton.Slot.ReferenceID;
@@ -156,7 +156,6 @@ public class ContextMenuBackOption : ResoniteMod {
 								ButtonPressEventRelay? eventRelay = child.GetComponent<ButtonPressEventRelay>();
 
 								if (eventRelay != null && (eventRelay.Target.Value == existingRef)) {
-									Debug("Existing back context button found, hooking!");
 									existingContextMenuButton = eventRelay.Slot;
 									break;
 								}
@@ -219,6 +218,9 @@ public class ContextMenuBackOption : ResoniteMod {
 					}
 				} else {
 					Button = existingButton;
+					if (existingContextMenuButton != null) {
+						existingContextMenuButton.Tag = "BackOption";
+					}
 				}
 
 				Button.LocalPressed -= RemovePreviousPage; // C# why do i need this
@@ -475,7 +477,39 @@ public class ContextMenuBackOption : ResoniteMod {
 		public static bool Prefix(User user, IWorldElement summoner, Slot pointer, LocaleString actionName, Uri actionIcon, colorX actionColor, ButtonEventHandler actionCallback, bool hidden = false) { // This fires for actions that require confirmation (e.g. entering an anchor, equipping an avatar/tool...)
 			if (user.IsLocalUser) {
 				if (Config!.GetValue(Enabled) == true) {
-					Msg("Confirmation opened, clear previous pages");
+					Debug("Confirmation opened, clear previous pages");
+					PreviousMenus.Clear();
+				}
+			}
+			return true;
+		}
+	}
+
+	[HarmonyPatch(typeof(WorldOrb), "ToggleContextMenu")]
+	class WorldOrbContextMenuPatch {
+		public static bool Prefix(WorldOrb __instance, TouchEventInfo touchInfo) { // This fires when you double click a world orb and it opens the context menu
+			Slot pressingSlot = touchInfo.source.Slot;
+			InteractionHandler commonTool = pressingSlot.FindInteractionHandler();
+			User user = commonTool.Owner;
+			if (user.IsLocalUser) {
+				if (Config!.GetValue(Enabled) == true) {
+					Debug("World orb opened, clear previous pages");
+					PreviousMenus.Clear();
+				}
+			}
+			return true;
+		}
+	}
+
+	[HarmonyPatch(typeof(InspectorMemberActions), "Pressed")]
+	class InspectorMemberContextMenuPatch {
+		public static bool Prefix(InspectorMemberActions __instance, IButton button, ButtonEventData eventData) { // This fires when you double click a world orb and it opens the context menu
+			Slot pressingSlot = eventData.source.Slot;
+			InteractionHandler commonTool = pressingSlot.FindInteractionHandler();
+			User user = commonTool.Owner;
+			if (user.IsLocalUser) {
+				if (Config!.GetValue(Enabled) == true) {
+					Debug("Inspector member opened, clear previous pages");
 					PreviousMenus.Clear();
 				}
 			}
