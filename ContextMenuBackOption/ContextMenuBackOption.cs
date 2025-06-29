@@ -5,7 +5,9 @@ using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
 using ResoniteModLoader;
+#if DEBUG
 using ResoniteHotReloadLib;
+#endif
 using FrooxEngine.UIX;
 using System.Threading.Tasks;
 
@@ -13,7 +15,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "1.0.1";
+	internal const string VERSION_CONSTANT = "1.0.1.1";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -39,7 +41,9 @@ public class ContextMenuBackOption : ResoniteMod {
 	static Type INTERACTION_HANDLER_TYPE = TypeHelper.FindType("FrooxEngine.InteractionHandler");
 
 	public override void OnEngineInit() {
+		#if DEBUG
 		HotReloader.RegisterForHotReload(this);
+		#endif
 
 		Config = GetConfiguration()!;
 		Config!.Save(true);
@@ -47,7 +51,7 @@ public class ContextMenuBackOption : ResoniteMod {
 		// Call setup method
 		Setup();
 	}
-
+	#if DEBUG
 	// This is the method that should be used to unload your mod
 	// This means removing patches, clearing memory that may be in use etc.
 	static void BeforeHotReload() {
@@ -63,6 +67,7 @@ public class ContextMenuBackOption : ResoniteMod {
 
 	// This is called in the newly loaded assembly
 	// Load your mod here like you normally would in OnEngineInit
+	
 	static void OnHotReload(ResoniteMod modInstance) {
 		// Get the config if needed
 		Config = modInstance.GetConfiguration()!;
@@ -71,6 +76,7 @@ public class ContextMenuBackOption : ResoniteMod {
 		// Call setup method
 		Setup();
 	}
+	#endif
 
 	static void Setup() {
 		// Patch Harmony
