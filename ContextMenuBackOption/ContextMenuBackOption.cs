@@ -15,7 +15,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "1.0.1.1";
+	internal const string VERSION_CONSTANT = "1.0.2";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -267,7 +267,7 @@ public class ContextMenuBackOption : ResoniteMod {
 		}
 	}
 
-	static Button SetupFancyButtonComponent(Slot FancyButton, Image image, OutlinedArc outlinedArc) {
+	static Button SetupFancyButtonComponent(Slot FancyButton, Image image, OutlinedArc outlinedArc, DynamicReferenceVariable<Button> dynVar) {
 		Button button = FancyButton.AttachComponent<Button>();
 		button.RequireInitialPress.Value = false;
 		button.PassThroughHorizontalMovement.Value = false;
@@ -295,6 +295,8 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		colorDriver.ColorDrive.Target = outlinedArc.FillColor;
 		colorDriver2.ColorDrive.Target = outlinedArc.OutlineColor;
+
+		dynVar.Reference.Value = button.ReferenceID;
 
 		return button;
 	}
@@ -332,7 +334,10 @@ public class ContextMenuBackOption : ResoniteMod {
 		image.Sprite.Target = spriteProvider;
 		image.Material.Target = imageMaterial;
 
-		SetupFancyButtonComponent(FancyButton, image, outlinedArc);
+		DynamicReferenceVariable<Button> dynVar = FancyButton.AttachComponent<DynamicReferenceVariable<Button>>();
+		dynVar.VariableName.Value = "User/ContextMenuBackOption.FancyButton";
+
+		SetupFancyButtonComponent(FancyButton, image, outlinedArc, dynVar);
 		return FancyButton;
 	}
 
@@ -373,6 +378,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					Debug("btutton gone");
 					Image fancyImage = FancyButtonImage.GetComponent<Image>();
 					OutlinedArc fancyArc = FancyButton.GetComponent<OutlinedArc>();
+					DynamicReferenceVariable<Button> dynVar = FancyButton.GetComponent<DynamicReferenceVariable<Button>>();
 
 					Debug("Releasing links");
 					if (fancyImage.Tint.ActiveLink != null) {
@@ -385,7 +391,7 @@ public class ContextMenuBackOption : ResoniteMod {
 						fancyArc.FillColor.ReleaseLink(fancyArc.FillColor.ActiveLink);
 					}
 					Debug("Done, setting up fancy component");
-					buttonComponent = SetupFancyButtonComponent(FancyButton, fancyImage, fancyArc);
+					buttonComponent = SetupFancyButtonComponent(FancyButton, fancyImage, fancyArc, dynVar);
 					Debug("ohhh yeahhh");
 				} else {
 					Warn("Could not find fancy button image, recreating the button entirely!");
