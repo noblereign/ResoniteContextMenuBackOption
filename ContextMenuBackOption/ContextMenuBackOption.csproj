@@ -3,7 +3,7 @@
 		<RootNamespace>ContextMenuBackOption</RootNamespace>
 		<AssemblyName>ContextMenuBackOption</AssemblyName>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-		<TargetFramework>net472</TargetFramework>
+		<TargetFramework>net9.0</TargetFramework>
 		<FileAlignment>512</FileAlignment>
 		<LangVersion>10.0</LangVersion>
 		<Nullable>enable</Nullable>
@@ -18,36 +18,33 @@
 		<ResonitePath>$(MSBuildThisFileDirectory)Resonite/</ResonitePath>
 		<ResonitePath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Resonite\')">C:\Program Files (x86)\Steam\steamapps\common\Resonite\</ResonitePath>
     <ResonitePath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/Resonite/')">$(HOME)/.steam/steam/steamapps/common/Resonite/</ResonitePath>
-    <ResonitePath Condition="Exists('P:\SteamLibrary\steamapps\common\Resonite\')">P:\SteamLibrary\steamapps\common\Resonite\</ResonitePath>
+    <ResonitePath Condition="Exists('T:\RESOLauncher\profiles\prerelease_modded\Game\')">T:\RESOLauncher\profiles\prerelease_modded\Game\</ResonitePath>
 	</PropertyGroup>
 
 	<ItemGroup>
     <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
-		<Reference Include="ResoniteModLoader">
-			<HintPath>$(ResonitePath)Libraries\ResoniteModLoader.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="HarmonyLib">
-      <HintPath Condition="Exists('$(ResonitePath)rml_libs\0Harmony.dll')">$(ResonitePath)rml_libs\0Harmony.dll</HintPath>
-      <HintPath Condition="Exists('$(ResonitePath)MonkeyLoader\0Harmony.dll')">$(ResonitePath)MonkeyLoader\0Harmony.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="FrooxEngine" Publicize="true">
-			<HintPath>$(ResonitePath)Resonite_Data\Managed\FrooxEngine.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(ResonitePath)rml_libs\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Elements.Assets">
+      <HintPath>$(ResonitePath)Elements.Assets.dll</HintPath>
+    </Reference>
+    <Reference Include="Elements.Core">
+      <HintPath>$(ResonitePath)Elements.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="FrooxEngine" Publicize="true">
+      <HintPath>$(ResonitePath)FrooxEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Renderite.Shared" Publicize="true">
+      <HintPath>$(ResonitePath)Renderite.Shared.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="ResoniteHotReloadLib">
       <HintPath>$(ResonitePath)rml_libs\ResoniteHotReloadLib.dll</HintPath>
     </Reference>
-
-    <Reference Include="Elements.Core">
-      <HintPath>$(ResonitePath)Resonite_Data\Managed\Elements.Core.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-
-    <Reference Include="Elements.Assets">
-      <HintPath>$(ResonitePath)Resonite_Data\Managed\Elements.Assets.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="ResoniteModLoader">
+      <HintPath>$(ResonitePath)Libraries\ResoniteModLoader.dll</HintPath>
     </Reference>
 	</ItemGroup>
 
@@ -57,6 +54,6 @@
 	</Target>
 
   <PropertyGroup>
-    <PostBuildEvent Condition="Exists('P:\SteamLibrary\steamapps\common\Resonite\rml_mods\HotReloadMods\')">copy /Y "$(TargetDir)$(AssemblyName).dll" "P:\SteamLibrary\steamapps\common\Resonite\rml_mods\HotReloadMods\$(AssemblyName).dll</PostBuildEvent>
+    <PostBuildEvent Condition="Exists('T:\RESOLauncher\profiles\prerelease_modded\Game\rml_mods\HotReloadMods\')">copy /Y "$(TargetDir)$(AssemblyName).dll" "T:\RESOLauncher\profiles\prerelease_modded\Game\rml_mods\HotReloadMods\$(AssemblyName).dll</PostBuildEvent>
   </PropertyGroup>
 </Project>
