@@ -47,13 +47,13 @@
       <HintPath>$(ResonitePath)Libraries\ResoniteModLoader.dll</HintPath>
     </Reference>
 	</ItemGroup>
-
-	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">
-    <Message Text="Attempting to copy $(TargetFileName) to $(ResonitePath)rml_mods" Importance="high" />
-    <Copy SourceFiles="$(TargetDir)$(TargetFileName)" DestinationFolder="$(ResonitePath)rml_mods" ContinueOnError="true" />
-	</Target>
-
+  
   <PropertyGroup>
     <PostBuildEvent Condition="Exists('P:\SteamLibrary\steamapps\common\Resonite\rml_mods\HotReloadMods\')">copy /Y "$(TargetDir)$(AssemblyName).dll" "P:\SteamLibrary\steamapps\common\Resonite\rml_mods\HotReloadMods\$(AssemblyName).dll</PostBuildEvent>
   </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">
+    <Message Text="Attempting to copy $(TargetFileName) to $(ResonitePath)rml_mods" Importance="high" />
+    <Copy SourceFiles="$(TargetDir)$(TargetFileName)" DestinationFolder="$(ResonitePath)rml_mods" ContinueOnError="true" />
+	</Target>
 </Project>
