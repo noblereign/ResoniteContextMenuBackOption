@@ -194,7 +194,9 @@ public class ContextMenuBackOption : ResoniteMod {
 						if (previousIsRoot == true) {
 							localized += user.GetLocalized("Dash.Screens.Home");
 						} else {
-							localized += TrimDescription(PreviousMenus[1].NameField.Value);
+							ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
+							string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.NameField.Value : PreviousMenus[1].NameField.Value;
+							localized += TrimDescription(previousMenuName);
 						}
 						localized += "</size>";
 
@@ -248,7 +250,10 @@ public class ContextMenuBackOption : ResoniteMod {
 										if (previousIsRoot == true) {
 											localized += user.GetLocalized("Dash.Screens.Home");
 										} else {
-											localized += TrimDescription(PreviousMenus[1].NameField.Value);
+
+											ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
+											string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.NameField.Value : PreviousMenus[1].NameField.Value;
+											localized += TrimDescription(previousMenuName);
 										}
 										localized += "</size>";
 										Debug("Renaming existing context menu button.");
@@ -585,10 +590,10 @@ public class ContextMenuBackOption : ResoniteMod {
 		public static bool Prefix(ContextMenuSubmenu __instance, IButton button, ButtonEventData eventData) { // This fires when you click on a submenu.
 			if (Config!.GetValue(Enabled) == true) {
 				ContextMenuSubmenu submenu = __instance;
-				if (submenu.ItemsRoot.Target == null || !ContextMenuSubmenu.IsValidSource(submenu.ItemsRoot.Target)) {
+				if (submenu.Slot == null || !ContextMenuSubmenu.IsValidSource(submenu.Slot) || submenu.ItemsRoot.Target == null || !ContextMenuSubmenu.IsValidSource(submenu.ItemsRoot.Target)) {
 					return true;
 				}
-				PreviousMenus.Insert(0, submenu.ItemsRoot.Target);
+				PreviousMenus.Insert(0, submenu.Slot);
 				Debug("There are " + PreviousMenus.Count + " pages to go back to.");
 			}
 			return true;
