@@ -15,7 +15,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "2.1.0";
+	internal const string VERSION_CONSTANT = "2.2.0";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -29,10 +29,6 @@ public class ContextMenuBackOption : ResoniteMod {
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<bool> ShowOnSingleItemMenus = new("Show on single item menus", "Should the Back option show up on single item menus?\n\nTurning this on may break some systems that rely on having only one button present (for example, certain context menu sliders).", () => false);
 	[AutoRegisterConfigKey]
-	public static readonly ModConfigurationKey<bool> OverrideExistingDescs = new("Override Description for Existing Buttons", "When a back button already exists, should its description be replaced with the modded one?", () => false);
-	[AutoRegisterConfigKey]
-	public static readonly ModConfigurationKey<bool> OverrideExistingOffset = new("Override Order for Existing Buttons", "When a back button already exists, should its order offset be replaced with the modded one?", () => false);
-	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<bool> AlternateDesign = new("Alternate Design", "Instead of adding a back option, adds a new button between the empty space in the context menu.\n\n<color=yellow>NOTE:</color> With this setting enabled, the mod will hide existing back buttons, so as to not have duplicates.", () => false);
 	//Alternate design suggested by U-PearPaw
 
@@ -44,13 +40,26 @@ public class ContextMenuBackOption : ResoniteMod {
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<colorX> ButtonColor = new("Back Button Color", "Color for the back button.", () => colorX.White);
 	[AutoRegisterConfigKey]
-	public static readonly ModConfigurationKey<string> ButtonText = new("Back Button Text", "Text for the back button.\n\nYou can use the placeholders <b><Back></b> and <b><PreviousMenu></b> to get the localized 'Back' text and previous menu name respectively.\n\n<i>Applies to standard design only.</i>", () => new string("<Back>\n<size=50%><PreviousMenu></size>"));
+	public static readonly ModConfigurationKey<string> ButtonText = new("Back Button Description", "Description for the back button.\n\nYou can use the placeholders <b><Back></b> and <b><PreviousMenu></b> to get the localized 'Back' text and previous menu name respectively.\n\n<i>Applies to standard design only.</i>", () => new string("<Back>\n<size=50%><PreviousMenu></size>"));
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<long> ButtonOrder = new("Back Button Order", "Order offset for the back button.\nDefault: -10000\n\n<i>Applies to standard design only.</i>", () => -10000);
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<float> ButtonSize = new("Back Button Size", "Size of the back button.\nDefault: 80\n\n<i>Applies to alternate design only.</i>", () => 80f);
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<float> ButtonShrunkenSize = new("Back Button Small Size", "Size of the back button when shrunken.\nDefault: 40\n\n<i>Applies to alternate design only.</i>", () => 40f);
+
+	[AutoRegisterConfigKey]
+	private static ModConfigurationKey<dummy> OVERRIDE_SEPERATOR = new("OVERRIDE_SEPERATOR", "<color=hero.cyan>Existing Button Overrides", () => new dummy());
+
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<bool> OverrideExistingIcons = new("Override Icon", "When a back button already exists, should its icon be replaced with the modded one?", () => false);
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<bool> OverrideExistingColors = new("Override Color", "When a back button already exists, should its color be replaced with the modded one?", () => false);
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<bool> OverrideExistingDescs = new("Override Description", "When a back button already exists, should its description be replaced with the modded one?", () => false);
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<bool> OverrideExistingOffset = new("Override Order", "When a back button already exists, should its order offset be replaced with the modded one?", () => false);
+	
 
 	public static ModConfiguration? Config;
 
@@ -269,6 +278,39 @@ public class ContextMenuBackOption : ResoniteMod {
 						if (existingContextMenuButton != null) {
 							existingContextMenuButton.Tag = "BackOption";
 
+							if (Config!.GetValue(OverrideExistingIcons) == true) {
+								Debug("Finding existing button icon slot.");
+								Slot IconSlot = existingContextMenuButton.FindChild("Image");
+								if (IconSlot != null) {
+									Debug("Finding existing button image component.");
+									Image ImageComponent = IconSlot.GetComponent<Image>();
+									if (ImageComponent != null) {
+										Debug("Forcing sprite target to modded.");
+
+										// feel like this is a little bit dirty but ah well it works
+										SpriteProvider spriteProvider = IconSlot.AttachComponent<SpriteProvider>();
+										StaticTexture2D texture = IconSlot.AttachComponent<StaticTexture2D>();
+										texture.URL.Value = (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"));
+										spriteProvider.Texture.Target = texture;
+
+										if (ImageComponent.Sprite.ActiveLink != null) {
+											ImageComponent.Sprite.ActiveLink.ReleaseLink(undoable: false);
+										}
+										ImageComponent.Sprite.SetTarget(spriteProvider);
+									}
+								}
+							}
+							if (Config!.GetValue(OverrideExistingColors) == true) {
+								Debug("Finding existing button data.");
+								ContextMenuItem ItemComponent = existingContextMenuButton.GetComponent<ContextMenuItem>();
+								if (ItemComponent != null) {
+									Debug("Forcing item color change.");
+									if (ItemComponent.Color.ActiveLink != null) {
+										ItemComponent.Color.ActiveLink.ReleaseLink(undoable: false);
+									}
+									ItemComponent.Color.Value = (Config != null ? Config.GetValue(ButtonColor)! : colorX.White);
+								}
+							}
 							if (Config!.GetValue(OverrideExistingDescs) == true) {
 								Debug("Finding existing button text slot.");
 								Slot TextSlot = existingContextMenuButton.FindChild("Text");
