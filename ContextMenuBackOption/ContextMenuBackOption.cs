@@ -27,12 +27,30 @@ public class ContextMenuBackOption : ResoniteMod {
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<bool> ShowOnBuiltIn = new("Show on built-in submenus", "Should the Back option show up on built-in submenus? (e.g. the Locomotion submenu)", () => false);
 	[AutoRegisterConfigKey]
-	public static readonly ModConfigurationKey<bool> ShowOnSingleItemMenus = new("Show on single item menus", "Should the Back option show up on single item menus? Turning this on may break some systems that rely on having only one button present (for example, certain context menu sliders).", () => false);
+	public static readonly ModConfigurationKey<bool> ShowOnSingleItemMenus = new("Show on single item menus", "Should the Back option show up on single item menus?\n\nTurning this on may break some systems that rely on having only one button present (for example, certain context menu sliders).", () => false);
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<bool> OverrideExistingDescs = new("Override Description for Existing Buttons", "When a back button already exists, should its description be replaced with the modded one?", () => false);
 	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<bool> OverrideExistingOffset = new("Override Order for Existing Buttons", "When a back button already exists, should its order offset be replaced with the modded one?", () => false);
+	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<bool> AlternateDesign = new("Alternate Design", "Instead of adding a back option, adds a new button between the empty space in the context menu.\n\n<color=yellow>NOTE:</color> With this setting enabled, the mod will hide existing back buttons, so as to not have duplicates.", () => false);
 	//Alternate design suggested by U-PearPaw
+
+	[AutoRegisterConfigKey]
+	private static ModConfigurationKey<dummy> CUSTOMIZATION_SEPERATOR = new("CUSTOMIZATION_SEPERATOR", "<color=hero.cyan>Button Customization", () => new dummy());
+
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<Uri> ButtonIcon = new("Back Button Icon", "Uri for the back button icon.", () => new Uri(("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png")));
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<colorX> ButtonColor = new("Back Button Color", "Color for the back button.", () => colorX.White);
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<string> ButtonText = new("Back Button Text", "Text for the back button.\n\nYou can use the placeholders <b><Back></b> and <b><PreviousMenu></b> to get the localized 'Back' text and previous menu name respectively.\n\n<i>Applies to standard design only.</i>", () => new string("<Back>\n<size=50%><PreviousMenu></size>"));
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<long> ButtonOrder = new("Back Button Order", "Order offset for the back button.\nDefault: -10000\n\n<i>Applies to standard design only.</i>", () => -10000);
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<float> ButtonSize = new("Back Button Size", "Size of the back button.\nDefault: 80\n\n<i>Applies to alternate design only.</i>", () => 80f);
+	[AutoRegisterConfigKey]
+	public static readonly ModConfigurationKey<float> ButtonShrunkenSize = new("Back Button Small Size", "Size of the back button when shrunken.\nDefault: 40\n\n<i>Applies to alternate design only.</i>", () => 40f);
 
 	public static ModConfiguration? Config;
 
@@ -106,6 +124,30 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		return description.Substring(0, 29) + "...";
 	}
+
+	public static string GetBackButtonText(User user) {
+		string template = Config != null ? Config.GetValue(ButtonText)! : "<Back>\n<size=50%><PreviousMenu></size>";
+
+		bool previousIsRoot = false;
+		if (PreviousMenus.Count > 1) {
+			previousIsRoot = (PreviousMenus[1] == user.GetUserContextMenu().Slot);
+		} else {
+			previousIsRoot = true;
+		}
+
+		string newText = template.Replace("<Back>", user.GetLocalized("General.Back"));
+
+		if (previousIsRoot == true) {
+			newText = newText.Replace("<PreviousMenu>", user.GetLocalized("Dash.Screens.Home"));
+		} else {
+			ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
+			string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.NameField.Value : PreviousMenus[1].NameField.Value;
+			newText = newText.Replace("<PreviousMenu>", TrimDescription(previousMenuName));
+		}
+
+		return newText;
+	}
+
 	static void GeneralButtonHandler(User user, IWorldElement summoner, Slot pointer, ContextMenuOptions options = default(ContextMenuOptions)) {
 		user.World.Coroutines.StartTask(async delegate
 		{
@@ -189,21 +231,10 @@ public class ContextMenuBackOption : ResoniteMod {
 					if (Button == null && existingButton == null) {
 						Debug("Making own back button...");
 
-						string localized = user.GetLocalized("General.Back");
-						localized += "\n<size=50%>";
-						if (previousIsRoot == true) {
-							localized += user.GetLocalized("Dash.Screens.Home");
-						} else {
-							ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
-							string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.NameField.Value : PreviousMenus[1].NameField.Value;
-							localized += TrimDescription(previousMenuName);
-						}
-						localized += "</size>";
-
-						ContextMenuItem MenuItem = menu.AddItem(localized, new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"), colorX.White);
+						ContextMenuItem MenuItem = menu.AddItem(GetBackButtonText(user), (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png")), (Config != null ? Config.GetValue(ButtonColor)! : colorX.White));
 						Slot MenuSlot = MenuItem.Slot;
 						MenuSlot.Tag = "BackOption";
-						MenuSlot.OrderOffset = -10000;
+						MenuSlot.OrderOffset = Config != null ? Config.GetValue(ButtonOrder)! : -10000;
 
 						Button = MenuItem.Button;
 
@@ -245,24 +276,16 @@ public class ContextMenuBackOption : ResoniteMod {
 									Debug("Finding existing button text component.");
 									Text TextComponent = TextSlot.GetComponent<Text>();
 									if (TextComponent != null) {
-										string localized = user.GetLocalized("General.Back");
-										localized += "\n<size=50%>";
-										if (previousIsRoot == true) {
-											localized += user.GetLocalized("Dash.Screens.Home");
-										} else {
-
-											ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
-											string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.NameField.Value : PreviousMenus[1].NameField.Value;
-											localized += TrimDescription(previousMenuName);
-										}
-										localized += "</size>";
 										Debug("Renaming existing context menu button.");
 										if (TextComponent.Content.ActiveLink != null) {
 											TextComponent.Content.ActiveLink.ReleaseLink(undoable: false);
 										}
-										TextComponent.Content.Value = localized;
+										TextComponent.Content.Value = GetBackButtonText(user);
 									}
 								}
+							}
+							if (Config!.GetValue(OverrideExistingOffset) == true) {
+								existingContextMenuButton.OrderOffset = Config != null ? Config.GetValue(ButtonOrder)! : -10000;
 							}
 						}
 					}
@@ -319,7 +342,7 @@ public class ContextMenuBackOption : ResoniteMod {
 		colorDriverImage.PressColor.Value = colorX.White;
 		colorDriverImage.DisabledColor.Value = colorX.White.SetA(0.53f);
 
-		colorX color = RadiantUI_Constants.Neutrals.LIGHT;
+		colorX color = (Config != null ? Config.GetValue(ButtonColor)! : colorX.White);
 		InteractionElement.ColorDriver colorDriver = button.ColorDrivers.Add();
 		InteractionElement.ColorDriver colorDriver2 = button.ColorDrivers.Add();
 		ColorHSV colorHSV = new ColorHSV(in color);
@@ -337,6 +360,10 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		dynVar.Reference.Value = button.ReferenceID;
 
+		Slot FancyButtonIcon = FancyButton.FindChild("Icon");
+		StaticTexture2D texture = FancyButtonIcon.GetComponent<StaticTexture2D>();
+		texture.URL.Value = (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"));
+
 		return button;
 	}
 
@@ -349,27 +376,29 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		UI_CircleSegment arcMaterial = RadialMenu.Parent.Parent.GetComponent<UI_CircleSegment>();
 
-		outlinedArc.Arc.Value = 80f;
-		outlinedArc.Offset.Value = 230f;
+		float buttonArcSize = Config != null ? Config.GetValue(ButtonSize)! : 80f;
+
+		outlinedArc.Arc.Value = buttonArcSize;
+		outlinedArc.Offset.Value = 230f - ((buttonArcSize-80f)/2);
 		outlinedArc.InnerRadiusRatio.Value = 0.6f;
 		outlinedArc.OuterRadiusRatio.Value = 1f;
 		outlinedArc.RoundedCornerRadius.Value = 14f;
 		outlinedArc.OutlineThickness.Value = 2f;
 		outlinedArc.Material.Target = arcMaterial;
 
-		Slot ButtonIcon = FancyButton.AddSlot("Icon");
-		RectTransform rectTransform2 = ButtonIcon.AttachComponent<RectTransform>();
+		Slot ButtonIconSlot = FancyButton.AddSlot("Icon");
+		RectTransform rectTransform2 = ButtonIconSlot.AttachComponent<RectTransform>();
 		rectTransform2.AnchorMin.Value = new float2(0f, 0.025f);
 		rectTransform2.AnchorMax.Value = new float2(1f, 0.175f);
 
 		UI_UnlitMaterial imageMaterial = RadialMenu.Parent.Parent.GetComponent<UI_UnlitMaterial>();
 
-		SpriteProvider spriteProvider = ButtonIcon.AttachComponent<SpriteProvider>();
-		StaticTexture2D texture = ButtonIcon.AttachComponent<StaticTexture2D>();
-		texture.URL.Value = new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png");
+		SpriteProvider spriteProvider = ButtonIconSlot.AttachComponent<SpriteProvider>();
+		StaticTexture2D texture = ButtonIconSlot.AttachComponent<StaticTexture2D>();
+		texture.URL.Value = (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"));
 		spriteProvider.Texture.Target = texture;
 
-		Image image = ButtonIcon.AttachComponent<Image>();
+		Image image = ButtonIconSlot.AttachComponent<Image>();
 		image.Sprite.Target = spriteProvider;
 		image.Material.Target = imageMaterial;
 
@@ -466,20 +495,27 @@ public class ContextMenuBackOption : ResoniteMod {
 							if (ctx._innerLerp != null) {
 								innerLerp = ctx._innerLerp.Value;
 							}
+
+							float buttonArcSize = Config != null ? Config.GetValue(ButtonSize)! : 80f;
+							float buttonSmallSize = Config != null ? Config.GetValue(ButtonShrunkenSize)! : 40f;
+
+							float buttonArcOffset = 230f - ((buttonArcSize - 80f) / 2);
+							float buttonArcSmallOffset = 250f - ((buttonSmallSize - 40f) / 2);
+
 							if (innerLerp >= 0) {
 								fancyArc.InnerRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .675f, .6f) + MathX.Remap(innerLerp, 0f, 1f, 0f, .2f);
 								fancyArc.OuterRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .925f, 1f);
 								fancyArc.RoundedCornerRadius.Value = MathX.Remap(innerLerp, 0f, 1f, 14f, 8f);
-								fancyArc.Arc.Value = MathX.Remap(innerLerp, 0f, 1f, 80f, 40f);
-								fancyArc.Offset.Value = MathX.Remap(innerLerp, 0f, 1f, 230f, 250f);
+								fancyArc.Arc.Value = MathX.Remap(innerLerp, 0f, 1f, buttonArcSize, buttonSmallSize);
+								fancyArc.Offset.Value = MathX.Remap(innerLerp, 0f, 1f, buttonArcOffset, buttonArcSmallOffset);
 								fancyIconTransform.AnchorMin.Value = new float2(0f, 0.025f);
 								fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, 0f, 1f, 1f, 1f), MathX.Remap(innerLerp, 0f, 1f, 0.175f, 0.075f));
 							} else {
 								fancyArc.InnerRadiusRatio.Value = .6f;
 								fancyArc.OuterRadiusRatio.Value = 1f;
 								fancyArc.RoundedCornerRadius.Value = 14f;
-								fancyArc.Arc.Value = MathX.Remap(innerLerp, -1f, 0f, 0f, 80f);
-								fancyArc.Offset.Value = MathX.Remap(innerLerp, -1f, 0f, 270f, 230f);
+								fancyArc.Arc.Value = MathX.Remap(innerLerp, -1f, 0f, 0f, buttonArcSize);
+								fancyArc.Offset.Value = MathX.Remap(innerLerp, -1f, 0f, buttonArcOffset + 40f, buttonArcOffset);
 								fancyIconTransform.AnchorMin.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 0f, 0f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.025f));
 								fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 1f, 1f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.175f));
 							}
