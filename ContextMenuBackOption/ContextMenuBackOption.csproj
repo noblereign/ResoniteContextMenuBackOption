@@ -3,7 +3,7 @@
 		<RootNamespace>ContextMenuBackOption</RootNamespace>
 		<AssemblyName>ContextMenuBackOption</AssemblyName>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<FileAlignment>512</FileAlignment>
 		<LangVersion>10.0</LangVersion>
 		<Nullable>enable</Nullable>
