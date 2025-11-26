@@ -125,7 +125,7 @@ public class ContextMenuBackOption : ResoniteMod {
 	static void RemovePreviousPage(IButton button, ButtonEventData eventData) {
 		DebugIfEnabled("Clicked, removing entries...");
 		int removed = 0;
-		while (removed < 2) {
+		while (removed < 1) {
 			if (PreviousMenus.Count <= 0) {
 				break;
 			}
@@ -133,6 +133,9 @@ public class ContextMenuBackOption : ResoniteMod {
 			removed++;
 			DebugIfEnabled(removed + "removed");
 		}
+		DebugIfEnabled("==================================================");
+		PreviousMenus.ForEach(item => DebugIfEnabled(item.Name));
+		DebugIfEnabled("==================================================");
 	}
 
 	public static string TrimDescription(string description) {
@@ -172,10 +175,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			await default(NextUpdate);
 			ContextMenu menu = user.GetUserContextMenu();
 			if (menu != null) {
-				DebugIfEnabled("Trying for fancy button");
-				DebugIfEnabled(user);
-				DebugIfEnabled("menu:");
-				DebugIfEnabled(menu);
+				DebugIfEnabled($"Trying for fancy button. Menu was found.");
 				Tuple<Slot, Button>? FancyItems = TryFancyButton(menu);
 				Slot? FancyButton = null;
 				IButton? Button = null;
@@ -191,7 +191,9 @@ public class ContextMenuBackOption : ResoniteMod {
 				if (itemRoot.ChildrenCount <= 1) {
 					DebugIfEnabled("Single button menu!");
 					if (!(Config!.GetValue(ShowOnSingleItemMenus))) {
-						FancyButton.ActiveSelf = false;
+						if (FancyButton != null) {
+							FancyButton.ActiveSelf = false;
+						}
 						return;
 					}
 				}
@@ -341,26 +343,28 @@ public class ContextMenuBackOption : ResoniteMod {
 						}
 					}
 
-					Button.LocalPressed -= RemovePreviousPage; // C# why do i need this
-					if ((PreviousMenus.Count > 1) && !previousIsRoot) {
-						DebugIfEnabled("Previous menu");
-						Button.LocalPressed += RemovePreviousPage;
-						DebugIfEnabled("Added");
-					} else {
-						DebugIfEnabled("Root menu");
-						Button.LocalPressed += (IButton button, ButtonEventData eventData) => {
-							if (previousIsRoot) {
-								RemovePreviousPage(button, eventData);
-							}
-							DebugIfEnabled("Going back to root!");
-							if (summoner.GetType() == INTERACTION_HANDLER_TYPE) {
-								((InteractionHandler)summoner).OpenContextMenu(InteractionHandler.MenuOptions.Default);
-							} else {
-								Warn("Summoner was not interaction handler, falling back to primary hand");
-								user.GetInteractionHandler(user.Primaryhand).OpenContextMenu(InteractionHandler.MenuOptions.Default);
-							}
-						};
-						DebugIfEnabled("Root menu fully added");
+					if (Button != null) {
+						Button.LocalPressed -= RemovePreviousPage; // C# why do i need this
+						if ((PreviousMenus.Count > 1) && !previousIsRoot) {
+							DebugIfEnabled("Previous menu");
+							Button.LocalPressed += RemovePreviousPage;
+							DebugIfEnabled("Added");
+						} else {
+							DebugIfEnabled("Root menu");
+							Button.LocalPressed += (IButton button, ButtonEventData eventData) => {
+								if (previousIsRoot) {
+									RemovePreviousPage(button, eventData);
+								}
+								DebugIfEnabled("Going back to root!");
+								if (summoner.GetType() == INTERACTION_HANDLER_TYPE) {
+									((InteractionHandler)summoner).OpenContextMenu(InteractionHandler.MenuOptions.Default);
+								} else {
+									Warn("Summoner was not interaction handler, falling back to primary hand");
+									user.GetInteractionHandler(user.Primaryhand).OpenContextMenu(InteractionHandler.MenuOptions.Default);
+								}
+							};
+							DebugIfEnabled("Root menu fully added");
+						}
 					}
 				}
 			}
@@ -420,6 +424,8 @@ public class ContextMenuBackOption : ResoniteMod {
 
 	static Slot ConstructFancyButton(Slot RadialMenu) {
 		Slot FancyButton = RadialMenu.AddSlot("CtxMenuBack");
+		FancyButton.Tag = "BackOption";
+
 		RectTransform rectTransform = FancyButton.AttachComponent<RectTransform>();
 		rectTransform.AnchorMin.Value = new float2(0.25f, 0.25f);
 		rectTransform.AnchorMax.Value = new float2(0.75f, 0.75f);
@@ -466,8 +472,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			DebugIfEnabled("Found radial, now look for button");
 			Slot? FancyButton = RadialMenu.FindChild("CtxMenuBack", false, false, 1);
 			Button? buttonComponent = null;
-			DebugIfEnabled("Button:");
-			DebugIfEnabled(FancyButton);
+			DebugIfEnabled($"Fancy Button Found: {FancyButton != null}");
 			if (FancyButton == null) { // There's probably a way to do this 100,000,000x better but I dunno how so :3
 				DebugIfEnabled("No button found");
 				if (Config!.GetValue(Enabled) == true && Config!.GetValue(AlternateDesign) == true) {
@@ -484,8 +489,7 @@ public class ContextMenuBackOption : ResoniteMod {
 				if (FancyButtonImage != null) {
 					DebugIfEnabled("we found the icon");
 					buttonComponent = FancyButton.GetComponent<Button>();
-					DebugIfEnabled("Button component:");
-					DebugIfEnabled(buttonComponent);
+					DebugIfEnabled($"Button component found: {buttonComponent != null}");
 					if (buttonComponent != null) { // kinda hacky and i wish i didn't need to: re-create the button to make sure the LocalPressed events are always cleared
 						DebugIfEnabled("Destorying button </3");
 						try {
@@ -677,11 +681,15 @@ public class ContextMenuBackOption : ResoniteMod {
 		public static bool Prefix(ContextMenuSubmenu __instance, IButton button, ButtonEventData eventData) { // This fires when you click on a submenu.
 			if (Config!.GetValue(Enabled) == true) {
 				ContextMenuSubmenu submenu = __instance;
-				if (submenu.Slot == null || !ContextMenuSubmenu.IsValidSource(submenu.Slot) || submenu.ItemsRoot.Target == null || !ContextMenuSubmenu.IsValidSource(submenu.ItemsRoot.Target)) {
+				DebugIfEnabled(button.Slot.Tag);
+				if ((button != null && button.Slot != null && button.Slot.Tag == "BackOption") || submenu.Slot == null || !ContextMenuSubmenu.IsValidSource(submenu.Slot) || submenu.ItemsRoot.Target == null || !ContextMenuSubmenu.IsValidSource(submenu.ItemsRoot.Target)) {
 					return true;
 				}
 				PreviousMenus.Insert(0, submenu.Slot);
 				DebugIfEnabled("There are " + PreviousMenus.Count + " pages to go back to.");
+				DebugIfEnabled("==================================================");
+				PreviousMenus.ForEach(item => DebugIfEnabled(item.Name));
+				DebugIfEnabled("==================================================");
 			}
 			return true;
 		}
