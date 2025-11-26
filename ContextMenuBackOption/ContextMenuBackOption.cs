@@ -583,7 +583,7 @@ public class ContextMenuBackOption : ResoniteMod {
 								fancyArc.OuterRadiusRatio.Value = 1f;
 								fancyArc.RoundedCornerRadius.Value = 14f;
 								fancyArc.Arc.Value = MathX.Remap(innerLerp, -1f, 0f, 0f, buttonArcSize);
-								fancyArc.Offset.Value = MathX.Remap(innerLerp, -1f, 0f, buttonArcOffset + 40f, buttonArcOffset);
+								fancyArc.Offset.Value = MathX.Remap(innerLerp, -1f, 0f, buttonArcOffset + (buttonArcSize/2f), buttonArcOffset);
 								fancyIconTransform.AnchorMin.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 0f, 0f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.025f));
 								fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 1f, 1f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.175f));
 							}
