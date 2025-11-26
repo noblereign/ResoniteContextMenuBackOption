@@ -206,17 +206,30 @@ public class ContextMenuBackOption : ResoniteMod {
 					IButton? existingButton = null;
 					Slot? existingContextMenuButton = null;
 					if (PreviousMenus.Count > 1) { // As far as I know you can't link back to the root menu in vanilla game... i think...
-						foreach (Slot child in PreviousMenus[0].Children) {
+						DebugIfEnabled("~~~~~~~~~~~~~~~~EXISTING BACK BUTTON CHECK!~~~~~~~~~~~~~~~~");
+						ContextMenuSubmenu? currentCtxSubmenu = PreviousMenus[0].GetComponent<ContextMenuSubmenu>();
+						Slot CheckOrigin = currentCtxSubmenu != null ? (currentCtxSubmenu.ItemsRoot.Target ?? PreviousMenus[0]) : PreviousMenus[0];
+
+						ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
+						Slot CheckTarget = previousCtxSubmenu != null ? (previousCtxSubmenu.ItemsRoot.Target ?? PreviousMenus[1]) : PreviousMenus[1];
+
+						DebugIfEnabled($"Checking {CheckOrigin.Name} for menus pointing to {CheckTarget.Name}");
+						foreach (Slot child in CheckOrigin.Children) {
 							ContextMenuSubmenu? submenu = child.GetComponent<ContextMenuSubmenu>();
 							ContextMenuItemSource? source = child.GetComponent<ContextMenuItemSource>();
 
-							if (submenu != null && source != null && (submenu.ItemsRoot.Target == PreviousMenus[1])) {
-								DebugIfEnabled("Existing back button found, hooking!");
-								existingButton = source;
-								break;
+							if (submenu != null && source != null) {
+								DebugIfEnabled($"{child.Name} --> {(submenu.ItemsRoot.Target != null ? submenu.ItemsRoot.Target.Name : "<NO TARGET>")}");
+								if (submenu.ItemsRoot.Target == CheckTarget) {
+									DebugIfEnabled("!!!Existing back button found, hooking!!!");
+									existingButton = source;
+									break;
+								}
+							} else {
+								DebugIfEnabled($"{child.Name} -/> Not a submenu");
 							}
 						}
-
+						DebugIfEnabled("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 						if (existingButton != null) {
 
 							DebugIfEnabled("Finding arc layout");
