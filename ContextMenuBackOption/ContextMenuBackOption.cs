@@ -15,7 +15,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "2.3.0";
+	internal const string VERSION_CONSTANT = "2.3.1";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -162,7 +162,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			newText = newText.Replace("<PreviousMenu>", user.GetLocalized("Dash.Screens.Home"));
 		} else {
 			ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
-			string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.NameField.Value : PreviousMenus[1].NameField.Value;
+			string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.Name_Field.Value : PreviousMenus[1].Name_Field.Value;
 			newText = newText.Replace("<PreviousMenu>", TrimDescription(previousMenuName));
 		}
 

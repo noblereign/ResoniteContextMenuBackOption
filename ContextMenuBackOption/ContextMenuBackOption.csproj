@@ -36,7 +36,7 @@
       <HintPath>$(ResonitePath)FrooxEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Renderite.Shared" Publicize="true">
+    <Reference Include="Renderite.Shared">
       <HintPath>$(ResonitePath)Renderite.Shared.dll</HintPath>
       <Private>False</Private>
     </Reference>
