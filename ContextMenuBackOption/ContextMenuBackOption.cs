@@ -15,7 +15,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "2.3.1";
+	internal const string VERSION_CONSTANT = "2.3.2";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -31,9 +31,6 @@ public class ContextMenuBackOption : ResoniteMod {
 	[AutoRegisterConfigKey]
 	public static readonly ModConfigurationKey<bool> AlternateDesign = new("Alternate Design", "Instead of adding a back option, adds a new button between the empty space in the context menu.\n\n<color=yellow>NOTE:</color> With this setting enabled, the mod will hide existing back buttons, so as to not have duplicates.", () => false);
 	//Alternate design suggested by U-PearPaw
-
-	[AutoRegisterConfigKey]
-	public static readonly ModConfigurationKey<bool> DebugLogging = new("Debug Logging", "Enables extra logging. Off by default since they clog up the logs, but they can be useful when diagnosing issues.", () => false);
 
 	[AutoRegisterConfigKey]
 	private static ModConfigurationKey<dummy> CUSTOMIZATION_SEPERATOR = new("CUSTOMIZATION_SEPERATOR", "<color=hero.cyan>Button Customization", () => new dummy());
@@ -116,14 +113,8 @@ public class ContextMenuBackOption : ResoniteMod {
 		harmony.PatchAll();
 	}
 
-	static void DebugIfEnabled(object message) {
-		if (Config!.GetValue(DebugLogging)) {
-			Debug(message);
-		}
-	}
-
 	static void RemovePreviousPage(IButton button, ButtonEventData eventData) {
-		DebugIfEnabled("Clicked, removing entries...");
+		Debug("Clicked, removing entries...");
 		int removed = 0;
 		while (removed < 1) {
 			if (PreviousMenus.Count <= 0) {
@@ -131,11 +122,11 @@ public class ContextMenuBackOption : ResoniteMod {
 			}
 			PreviousMenus.RemoveAt(0);
 			removed++;
-			DebugIfEnabled(removed + "removed");
+			Debug(removed + "removed");
 		}
-		DebugIfEnabled("==================================================");
-		PreviousMenus.ForEach(item => DebugIfEnabled(item.Name));
-		DebugIfEnabled("==================================================");
+		Debug("==================================================");
+		PreviousMenus.ForEach(item => Debug(item.Name));
+		Debug("==================================================");
 	}
 
 	public static string TrimDescription(string description) {
@@ -175,21 +166,21 @@ public class ContextMenuBackOption : ResoniteMod {
 			await default(NextUpdate);
 			ContextMenu menu = user.GetUserContextMenu();
 			if (menu != null) {
-				DebugIfEnabled($"Trying for fancy button. Menu was found.");
+				Debug($"Trying for fancy button. Menu was found.");
 				Tuple<Slot, Button>? FancyItems = TryFancyButton(menu);
 				Slot? FancyButton = null;
 				IButton? Button = null;
-				DebugIfEnabled("Tried!");
+				Debug("Tried!");
 
 				if (FancyItems != null) {
-					DebugIfEnabled("Fancy button path");
+					Debug("Fancy button path");
 					FancyButton = FancyItems.Item1;
 					Button = FancyItems.Item2;
 				}
 
 				Slot itemRoot = menu._itemsRoot.Target;
 				if (itemRoot.ChildrenCount <= 1) {
-					DebugIfEnabled("Single button menu!");
+					Debug("Single button menu!");
 					if (!(Config!.GetValue(ShowOnSingleItemMenus))) {
 						if (FancyButton != null) {
 							FancyButton.ActiveSelf = false;
@@ -201,48 +192,48 @@ public class ContextMenuBackOption : ResoniteMod {
 				if (FancyButton != null) {
 					FancyButton.ActiveSelf = (PreviousMenus.Count > 0);
 				}
-				DebugIfEnabled("Fancy button active checked");
+				Debug("Fancy button active checked");
 				if (PreviousMenus.Count > 0) {
 					IButton? existingButton = null;
 					Slot? existingContextMenuButton = null;
 					if (PreviousMenus.Count > 1) { // As far as I know you can't link back to the root menu in vanilla game... i think...
-						DebugIfEnabled("~~~~~~~~~~~~~~~~EXISTING BACK BUTTON CHECK!~~~~~~~~~~~~~~~~");
+						Debug("~~~~~~~~~~~~~~~~EXISTING BACK BUTTON CHECK!~~~~~~~~~~~~~~~~");
 						ContextMenuSubmenu? currentCtxSubmenu = PreviousMenus[0].GetComponent<ContextMenuSubmenu>();
 						Slot CheckOrigin = currentCtxSubmenu != null ? (currentCtxSubmenu.ItemsRoot.Target ?? PreviousMenus[0]) : PreviousMenus[0];
 
 						ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
 						Slot CheckTarget = previousCtxSubmenu != null ? (previousCtxSubmenu.ItemsRoot.Target ?? PreviousMenus[1]) : PreviousMenus[1];
 
-						DebugIfEnabled($"Checking {CheckOrigin.Name} for menus pointing to {CheckTarget.Name}");
+						Debug($"Checking {CheckOrigin.Name} for menus pointing to {CheckTarget.Name}");
 						foreach (Slot child in CheckOrigin.Children) {
 							ContextMenuSubmenu? submenu = child.GetComponent<ContextMenuSubmenu>();
 							ContextMenuItemSource? source = child.GetComponent<ContextMenuItemSource>();
 
 							if (submenu != null && source != null) {
-								DebugIfEnabled($"{child.Name} --> {(submenu.ItemsRoot.Target != null ? submenu.ItemsRoot.Target.Name : "<NO TARGET>")}");
+								Debug($"{child.Name} --> {(submenu.ItemsRoot.Target != null ? submenu.ItemsRoot.Target.Name : "<NO TARGET>")}");
 								if (submenu.ItemsRoot.Target == CheckTarget) {
-									DebugIfEnabled("!!!Existing back button found, hooking!!!");
+									Debug("!!!Existing back button found, hooking!!!");
 									existingButton = source;
 									break;
 								}
 							} else {
-								DebugIfEnabled($"{child.Name} -/> Not a submenu");
+								Debug($"{child.Name} -/> Not a submenu");
 							}
 						}
-						DebugIfEnabled("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+						Debug("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 						if (existingButton != null) {
 
-							DebugIfEnabled("Finding arc layout");
+							Debug("Finding arc layout");
 							Slot? ArcLayout = menu.Slot.FindChild("ArcLayout", false, false, 3);
 							RefID existingRef = existingButton.Slot.ReferenceID;
-							DebugIfEnabled(existingRef);
+							Debug(existingRef);
 							if (ArcLayout != null) {
-								DebugIfEnabled("Seearching ctx");
+								Debug("Seearching ctx");
 								foreach (Slot child in ArcLayout.Children) {
 									ButtonPressEventRelay? eventRelay = child.GetComponent<ButtonPressEventRelay>();
 
 									if (eventRelay != null && (eventRelay.Target.Value == existingRef)) {
-										DebugIfEnabled("Existing back button slot found!! :D");
+										Debug("Existing back button slot found!! :D");
 										existingContextMenuButton = eventRelay.Slot;
 										break;
 									}
@@ -252,7 +243,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					}
 
 
-					DebugIfEnabled("Checked for back buttons");
+					Debug("Checked for back buttons");
 
 					bool previousIsRoot = false;
 					if (PreviousMenus.Count > 1) {
@@ -262,7 +253,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					}
 
 					if (Button == null && existingButton == null) {
-						DebugIfEnabled("Making own back button...");
+						Debug("Making own back button...");
 
 						ContextMenuItem MenuItem = menu.AddItem(GetBackButtonText(user), (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png")), (Config != null ? Config.GetValue(ButtonColor)! : colorX.White));
 						Slot MenuSlot = MenuItem.Slot;
@@ -280,13 +271,13 @@ public class ContextMenuBackOption : ResoniteMod {
 							ButtonPressEventRelay? BackRelay = (ButtonPressEventRelay?)FancyButton.GetComponentOrAttach<ButtonPressEventRelay>();
 							if (BackRelay != null) {
 								if (existingButton != null) { // use existing button relay and hide
-									DebugIfEnabled("using existing relay");
+									Debug("using existing relay");
 									BackRelay.Target.Value = existingButton.Slot.ReferenceID;
 									if (existingContextMenuButton != null) {
 										existingContextMenuButton.ActiveSelf = false;
-										DebugIfEnabled("Disabled existing back button.");
+										Debug("Disabled existing back button.");
 									} else {
-										DebugIfEnabled("?! Existing back button not found ?!");
+										Debug("?! Existing back button not found ?!");
 									}
 								} else if ((PreviousMenus.Count > 1) && !previousIsRoot) { // previous page
 									BackRelay.Target.Value = PreviousMenus[1].ReferenceID;
@@ -303,13 +294,13 @@ public class ContextMenuBackOption : ResoniteMod {
 							existingContextMenuButton.Tag = "BackOption";
 
 							if (Config!.GetValue(OverrideExistingIcons) == true) {
-								DebugIfEnabled("Finding existing button icon slot.");
+								Debug("Finding existing button icon slot.");
 								Slot IconSlot = existingContextMenuButton.FindChild("Image");
 								if (IconSlot != null) {
-									DebugIfEnabled("Finding existing button image component.");
+									Debug("Finding existing button image component.");
 									Image ImageComponent = IconSlot.GetComponent<Image>();
 									if (ImageComponent != null) {
-										DebugIfEnabled("Forcing sprite target to modded.");
+										Debug("Forcing sprite target to modded.");
 
 										// feel like this is a little bit dirty but ah well it works
 										SpriteProvider spriteProvider = IconSlot.AttachComponent<SpriteProvider>();
@@ -325,10 +316,10 @@ public class ContextMenuBackOption : ResoniteMod {
 								}
 							}
 							if (Config!.GetValue(OverrideExistingColors) == true) {
-								DebugIfEnabled("Finding existing button data.");
+								Debug("Finding existing button data.");
 								ContextMenuItem ItemComponent = existingContextMenuButton.GetComponent<ContextMenuItem>();
 								if (ItemComponent != null) {
-									DebugIfEnabled("Forcing item color change.");
+									Debug("Forcing item color change.");
 									if (ItemComponent.Color.ActiveLink != null) {
 										ItemComponent.Color.ActiveLink.ReleaseLink(undoable: false);
 									}
@@ -336,13 +327,13 @@ public class ContextMenuBackOption : ResoniteMod {
 								}
 							}
 							if (Config!.GetValue(OverrideExistingDescs) == true) {
-								DebugIfEnabled("Finding existing button text slot.");
+								Debug("Finding existing button text slot.");
 								Slot TextSlot = existingContextMenuButton.FindChild("Text");
 								if (TextSlot != null) {
-									DebugIfEnabled("Finding existing button text component.");
+									Debug("Finding existing button text component.");
 									Text TextComponent = TextSlot.GetComponent<Text>();
 									if (TextComponent != null) {
-										DebugIfEnabled("Renaming existing context menu button.");
+										Debug("Renaming existing context menu button.");
 										if (TextComponent.Content.ActiveLink != null) {
 											TextComponent.Content.ActiveLink.ReleaseLink(undoable: false);
 										}
@@ -359,16 +350,16 @@ public class ContextMenuBackOption : ResoniteMod {
 					if (Button != null) {
 						Button.LocalPressed -= RemovePreviousPage; // C# why do i need this
 						if ((PreviousMenus.Count > 1) && !previousIsRoot) {
-							DebugIfEnabled("Previous menu");
+							Debug("Previous menu");
 							Button.LocalPressed += RemovePreviousPage;
-							DebugIfEnabled("Added");
+							Debug("Added");
 						} else {
-							DebugIfEnabled("Root menu");
+							Debug("Root menu");
 							Button.LocalPressed += (IButton button, ButtonEventData eventData) => {
 								if (previousIsRoot) {
 									RemovePreviousPage(button, eventData);
 								}
-								DebugIfEnabled("Going back to root!");
+								Debug("Going back to root!");
 								if (summoner.GetType() == INTERACTION_HANDLER_TYPE) {
 									((InteractionHandler)summoner).OpenContextMenu(InteractionHandler.MenuOptions.Default);
 								} else {
@@ -376,7 +367,7 @@ public class ContextMenuBackOption : ResoniteMod {
 									user.GetInteractionHandler(user.Primaryhand).OpenContextMenu(InteractionHandler.MenuOptions.Default);
 								}
 							};
-							DebugIfEnabled("Root menu fully added");
+							Debug("Root menu fully added");
 						}
 					}
 				}
@@ -385,12 +376,12 @@ public class ContextMenuBackOption : ResoniteMod {
 	}
 
 	public static async Task HandleButtonAfterAnimation(ContextMenu menu, User user, IWorldElement summoner, Slot pointer, ContextMenuOptions options = default(ContextMenuOptions)) {
-		DebugIfEnabled("Waiting...");
+		Debug("Waiting...");
 		while ((menu._lerp.Value > 0f) && menu != null) {
 			await default(NextUpdate);
 		}
 		if (menu != null) {
-			DebugIfEnabled("Button will now be handled.");
+			Debug("Button will now be handled.");
 			GeneralButtonHandler(user, summoner, pointer, options);
 		} else {
 			Warn("Cannot handle button, menu became null!");
@@ -482,41 +473,41 @@ public class ContextMenuBackOption : ResoniteMod {
 	private static Tuple<Slot, Button>? TryFancyButton(ContextMenu menu) {
 		Slot? RadialMenu = menu.Slot.FindChild("Radial Menu", false, false, 2);
 		if (RadialMenu != null) {
-			DebugIfEnabled("Found radial, now look for button");
+			Debug("Found radial, now look for button");
 			Slot? FancyButton = RadialMenu.FindChild("CtxMenuBack", false, false, 1);
 			Button? buttonComponent = null;
-			DebugIfEnabled($"Fancy Button Found: {FancyButton != null}");
+			Debug($"Fancy Button Found: {FancyButton != null}");
 			if (FancyButton == null) { // There's probably a way to do this 100,000,000x better but I dunno how so :3
-				DebugIfEnabled("No button found");
+				Debug("No button found");
 				if (Config!.GetValue(Enabled) == true && Config!.GetValue(AlternateDesign) == true) {
 					// Manually construct the UI (horrible)
 					FancyButton = ConstructFancyButton(RadialMenu);
 					buttonComponent = FancyButton.GetComponent<Button>();
-					DebugIfEnabled("Made fancy button");
+					Debug("Made fancy button");
 				} else {
 					return null;
 				}
 			} else if (Config!.GetValue(Enabled) == true && Config!.GetValue(AlternateDesign) == true) {
-				DebugIfEnabled("Existing button found, look for icon");
+				Debug("Existing button found, look for icon");
 				Slot? FancyButtonImage = FancyButton.FindChild("Icon", false, false, 1);
 				if (FancyButtonImage != null) {
-					DebugIfEnabled("we found the icon");
+					Debug("we found the icon");
 					buttonComponent = FancyButton.GetComponent<Button>();
-					DebugIfEnabled($"Button component found: {buttonComponent != null}");
+					Debug($"Button component found: {buttonComponent != null}");
 					if (buttonComponent != null) { // kinda hacky and i wish i didn't need to: re-create the button to make sure the LocalPressed events are always cleared
-						DebugIfEnabled("Destorying button </3");
+						Debug("Destroying button </3");
 						try {
 							buttonComponent.Destroy();
 						} catch (Exception e) {
 							Warn(e);
 						}
 					}
-					DebugIfEnabled("btutton gone");
+					Debug("btutton gone");
 					Image fancyImage = FancyButtonImage.GetComponent<Image>();
 					OutlinedArc fancyArc = FancyButton.GetComponent<OutlinedArc>();
 					DynamicReferenceVariable<Button> dynVar = FancyButton.GetComponent<DynamicReferenceVariable<Button>>();
 
-					DebugIfEnabled("Releasing links");
+					Debug("Releasing links");
 					if (fancyImage.Tint.ActiveLink != null) {
 						fancyImage.Tint.ReleaseLink(fancyImage.Tint.ActiveLink);
 					}
@@ -526,9 +517,8 @@ public class ContextMenuBackOption : ResoniteMod {
 					if (fancyArc.FillColor.ActiveLink != null) {
 						fancyArc.FillColor.ReleaseLink(fancyArc.FillColor.ActiveLink);
 					}
-					DebugIfEnabled("Done, setting up fancy component");
+					Debug("Done, setting up fancy component");
 					buttonComponent = SetupFancyButtonComponent(FancyButton, fancyImage, fancyArc, dynVar);
-					DebugIfEnabled("ohhh yeahhh");
 				} else {
 					Warn("Could not find fancy button image, recreating the button entirely!");
 					FancyButton.Destroy();
@@ -536,14 +526,14 @@ public class ContextMenuBackOption : ResoniteMod {
 					buttonComponent = FancyButton.GetComponent<Button>();
 				}
 			} else {
-				DebugIfEnabled("Returning null");
+				Debug("Returning null");
 				FancyButton?.Destroy();
 				return null;
 			}
-			DebugIfEnabled("Returning tuple");
+			Debug("Returning tuple");
 			return new Tuple<Slot, Button>(FancyButton, buttonComponent);
 		}
-		DebugIfEnabled("Truly null");
+		Debug("Truly null");
 		return null;
 	}
 	static void UpdateFancyButtonVisuals(ContextMenu ctx) {
@@ -596,14 +586,14 @@ public class ContextMenuBackOption : ResoniteMod {
 
 	[HarmonyPatch(typeof(InteractionHandler), "OpenContextMenu")]
 	class ContextMenuOpenRootPatch {
-		public static bool Prefix(InteractionHandler __instance, InteractionHandler.MenuOptions options, out bool __state) { // This one fires for Context Menu Root as well as the built-in ones (e.g. Locomotion, Grab Type)
+		public static void Prefix(InteractionHandler __instance, InteractionHandler.MenuOptions options, out bool __state) { // This one fires for Context Menu Root as well as the built-in ones (e.g. Locomotion, Grab Type)
 			__state = false;
 			if (__instance.IsOwnedByLocalUser) {
 				if (options == InteractionHandler.MenuOptions.Default || (Config!.GetValue(ShowOnBuiltIn) == false)) {
-					DebugIfEnabled("Context menu root opened, clear previous menus");
+					Debug("Context menu root opened, clear previous menus");
 					PreviousMenus.Clear();
 				} else if (Config!.GetValue(ShowOnBuiltIn)) {
-					DebugIfEnabled("Built in context menu opened, add root back");
+					Debug("Built in context menu opened, add root back");
 					PreviousMenus.Insert(0, __instance.LocalUser.GetUserContextMenu().Slot); // Use context menu slot as placeholder for "Root Menu"
 					__state = true;
 				}
@@ -612,63 +602,59 @@ public class ContextMenuBackOption : ResoniteMod {
 					FancyItems.Item1.ActiveSelf = (PreviousMenus.Count > 0);
 				}
 			}
-			return true;
 		}
 
 		public static async void Postfix(InteractionHandler __instance, InteractionHandler.MenuOptions options, bool __state) { // This one fires for Context Menu Root as well as the built-in ones (e.g. Locomotion, Grab Type)
 			if (__state) {
-				DebugIfEnabled("Attempting button handler.");
+				Debug("Attempting button handler.");
 				await __instance.World.Coroutines.StartTask(async delegate
 				{
 					await HandleButtonAfterAnimation(__instance.LocalUser.GetUserContextMenu(), __instance.LocalUser, __instance, __instance.PointReference, default(ContextMenuOptions));
 				}); 
-				DebugIfEnabled("Button handled.");
+				Debug("Button handled.");
 			}
 		}
 	}
 
 	[HarmonyPatch(typeof(ContextMenuExtensions), "ContextMenuConfirm")]
 	class ContextMenuConfirmActionPatch {
-		public static bool Prefix(User user, IWorldElement summoner, Slot pointer, LocaleString actionName, Uri actionIcon, colorX actionColor, ButtonEventHandler actionCallback, bool hidden = false) { // This fires for actions that require confirmation (e.g. entering an anchor, equipping an avatar/tool...)
+		public static void Prefix(User user, IWorldElement summoner, Slot pointer, LocaleString actionName, Uri actionIcon, colorX actionColor, ButtonEventHandler actionCallback, bool hidden = false) { // This fires for actions that require confirmation (e.g. entering an anchor, equipping an avatar/tool...)
 			if (user.IsLocalUser) {
 				if (Config!.GetValue(Enabled) == true) {
-					DebugIfEnabled("Confirmation opened, clear previous pages");
+					Debug("Confirmation opened, clear previous pages");
 					PreviousMenus.Clear();
 				}
 			}
-			return true;
 		}
 	}
 
 	[HarmonyPatch(typeof(WorldOrb), "ToggleContextMenu")]
 	class WorldOrbContextMenuPatch {
-		public static bool Prefix(WorldOrb __instance, TouchEventInfo touchInfo) { // This fires when you double click a world orb and it opens the context menu
+		public static void Prefix(WorldOrb __instance, TouchEventInfo touchInfo) { // This fires when you double click a world orb and it opens the context menu
 			Slot pressingSlot = touchInfo.source.Slot;
 			InteractionHandler commonTool = pressingSlot.FindInteractionHandler();
 			User user = commonTool.Owner;
 			if (user.IsLocalUser) {
 				if (Config!.GetValue(Enabled) == true) {
-					DebugIfEnabled("World orb opened, clear previous pages");
+					Debug("World orb opened, clear previous pages");
 					PreviousMenus.Clear();
 				}
 			}
-			return true;
 		}
 	}
 
 	[HarmonyPatch(typeof(InspectorMemberActions), "Pressed")]
 	class InspectorMemberContextMenuPatch {
-		public static bool Prefix(InspectorMemberActions __instance, IButton button, ButtonEventData eventData) { // This fires when you open the inspector member context menu
+		public static void Prefix(InspectorMemberActions __instance, IButton button, ButtonEventData eventData) { // This fires when you open the inspector member context menu
 			Slot pressingSlot = eventData.source.Slot;
 			InteractionHandler commonTool = pressingSlot.FindInteractionHandler();
 			User user = commonTool.Owner;
 			if (user.IsLocalUser) {
 				if (Config!.GetValue(Enabled) == true) {
-					DebugIfEnabled("Inspector member opened, clear previous pages");
+					Debug("Inspector member opened, clear previous pages");
 					PreviousMenus.Clear();
 				}
 			}
-			return true;
 		}
 	}
 
@@ -677,7 +663,7 @@ public class ContextMenuBackOption : ResoniteMod {
 		public static async void Postfix(User user, IWorldElement summoner, Slot pointer, ContextMenuOptions options = default(ContextMenuOptions)) { // This one fires for ANY context menu, including custom ones. Does not fire for root menus.
 			if (user.IsLocalUser) {
 				if (Config!.GetValue(Enabled) == true) {
-					DebugIfEnabled("Any menu was opened");
+					Debug("Any menu was opened");
 					ContextMenu menu = user.GetUserContextMenu();
 					if (menu != null) {
 						await HandleButtonAfterAnimation(menu, user, summoner, pointer, options);
@@ -691,20 +677,25 @@ public class ContextMenuBackOption : ResoniteMod {
 
 	[HarmonyPatch(typeof(ContextMenuSubmenu), "Pressed")]
 	class SubMenuPressPatch {
-		public static bool Prefix(ContextMenuSubmenu __instance, IButton button, ButtonEventData eventData) { // This fires when you click on a submenu.
+		public static void Prefix(ContextMenuSubmenu __instance, IButton button, ButtonEventData eventData) { // This fires when you click on a submenu.
 			if (Config!.GetValue(Enabled) == true) {
 				ContextMenuSubmenu submenu = __instance;
-				DebugIfEnabled(button.Slot.Tag);
+
+				if (!button.Slot.IsChildOf(__instance.World.LocalUser.GetUserContextMenu().Slot)) {
+					Debug("Submenu opened from outside source, clearing the history.");
+					PreviousMenus.Clear();
+					return;
+				}
+
 				if ((button != null && button.Slot != null && button.Slot.Tag == "BackOption") || submenu.Slot == null || !ContextMenuSubmenu.IsValidSource(submenu.Slot) || submenu.ItemsRoot.Target == null || !ContextMenuSubmenu.IsValidSource(submenu.ItemsRoot.Target)) {
-					return true;
+					return;
 				}
 				PreviousMenus.Insert(0, submenu.Slot);
-				DebugIfEnabled("There are " + PreviousMenus.Count + " pages to go back to.");
-				DebugIfEnabled("==================================================");
-				PreviousMenus.ForEach(item => DebugIfEnabled(item.Name));
-				DebugIfEnabled("==================================================");
+				Debug("There are " + PreviousMenus.Count + " pages to go back to.");
+				Debug("==================================================");
+				PreviousMenus.ForEach(item => Debug(item.Name));
+				Debug("==================================================");
 			}
-			return true;
 		}
 	}
 
