@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 using Elements.Core;
 using FrooxEngine;
@@ -15,7 +16,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "2.3.3";
+	internal const string VERSION_CONSTANT = "3.0.0";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -63,7 +64,7 @@ public class ContextMenuBackOption : ResoniteMod {
 
 	public static ModConfiguration? Config;
 
-	static List<Slot> PreviousMenus = new();
+	static List<(WeakReference<Slot> SlotRef, bool IsExternal)> PreviousMenus = new();
 	static float lastLerp = 0;
 	static float lastInnerLerp = 0;
 
@@ -125,7 +126,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			Debug(removed + "removed");
 		}
 		Debug("==================================================");
-		PreviousMenus.ForEach(item => Debug(item.Name));
+		PreviousMenus.ForEach(item => Debug(item.SlotRef.TryGetTarget(out var slot) ? slot.Name : "null"));
 		Debug("==================================================");
 	}
 
@@ -141,8 +142,10 @@ public class ContextMenuBackOption : ResoniteMod {
 		string template = Config != null ? Config.GetValue(ButtonText)! : "<Back>\n<size=50%><PreviousMenu></size>";
 
 		bool previousIsRoot = false;
+		Slot? prevSlot = null;
 		if (PreviousMenus.Count > 1) {
-			previousIsRoot = (PreviousMenus[1] == user.GetUserContextMenu().Slot);
+			PreviousMenus[1].SlotRef.TryGetTarget(out prevSlot);
+			previousIsRoot = prevSlot != null && prevSlot == user.GetUserContextMenu().Slot;
 		} else {
 			previousIsRoot = true;
 		}
@@ -152,8 +155,8 @@ public class ContextMenuBackOption : ResoniteMod {
 		if (previousIsRoot == true) {
 			newText = newText.Replace("<PreviousMenu>", user.GetLocalized("Dash.Screens.Home"));
 		} else {
-			ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
-			string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.Name_Field.Value : PreviousMenus[1].Name_Field.Value;
+			ContextMenuSubmenu? previousCtxSubmenu = prevSlot?.GetComponent<ContextMenuSubmenu>();
+			string previousMenuName = (previousCtxSubmenu != null && previousCtxSubmenu.ItemsRoot.Slot != null) ? previousCtxSubmenu.ItemsRoot.Slot.Name_Field.Value : (prevSlot != null ? prevSlot.Name_Field.Value : "Unknown");
 			newText = newText.Replace("<PreviousMenu>", TrimDescription(previousMenuName));
 		}
 
@@ -189,35 +192,42 @@ public class ContextMenuBackOption : ResoniteMod {
 					}
 				}
 
+				bool canGoBack = PreviousMenus.Count > 0 && !PreviousMenus.GetFirst().IsExternal;
+				Debug(PreviousMenus.GetFirst());
+
 				if (FancyButton != null) {
-					FancyButton.ActiveSelf = (PreviousMenus.Count > 0);
+					FancyButton.ActiveSelf = (canGoBack);
 				}
 				Debug("Fancy button active checked");
-				if (PreviousMenus.Count > 0) {
+				if (canGoBack) {
 					IButton? existingButton = null;
 					Slot? existingContextMenuButton = null;
 					if (PreviousMenus.Count > 1) { // As far as I know you can't link back to the root menu in vanilla game... i think...
 						Debug("~~~~~~~~~~~~~~~~EXISTING BACK BUTTON CHECK!~~~~~~~~~~~~~~~~");
-						ContextMenuSubmenu? currentCtxSubmenu = PreviousMenus[0].GetComponent<ContextMenuSubmenu>();
-						Slot CheckOrigin = currentCtxSubmenu != null ? (currentCtxSubmenu.ItemsRoot.Target ?? PreviousMenus[0]) : PreviousMenus[0];
+						PreviousMenus[0].SlotRef.TryGetTarget(out Slot? currSlot);
+						ContextMenuSubmenu? currentCtxSubmenu = currSlot?.GetComponent<ContextMenuSubmenu>();
+						Slot? CheckOrigin = currentCtxSubmenu != null ? (currentCtxSubmenu.ItemsRoot.Target ?? currSlot) : currSlot;
 
-						ContextMenuSubmenu? previousCtxSubmenu = PreviousMenus[1].GetComponent<ContextMenuSubmenu>();
-						Slot CheckTarget = previousCtxSubmenu != null ? (previousCtxSubmenu.ItemsRoot.Target ?? PreviousMenus[1]) : PreviousMenus[1];
+						PreviousMenus[1].SlotRef.TryGetTarget(out Slot? prevSlot);
+						ContextMenuSubmenu? previousCtxSubmenu = prevSlot?.GetComponent<ContextMenuSubmenu>();
+						Slot? CheckTarget = previousCtxSubmenu != null ? (previousCtxSubmenu.ItemsRoot.Target ?? prevSlot) : prevSlot;
 
-						Debug($"Checking {CheckOrigin.Name} for menus pointing to {CheckTarget.Name}");
-						foreach (Slot child in CheckOrigin.Children) {
-							ContextMenuSubmenu? submenu = child.GetComponent<ContextMenuSubmenu>();
-							ContextMenuItemSource? source = child.GetComponent<ContextMenuItemSource>();
+						if (CheckOrigin != null && CheckTarget != null) {
+							Debug($"Checking {CheckOrigin.Name} for menus pointing to {CheckTarget.Name}");
+							foreach (Slot child in CheckOrigin.Children) {
+								ContextMenuSubmenu? submenu = child.GetComponent<ContextMenuSubmenu>();
+								ContextMenuItemSource? source = child.GetComponent<ContextMenuItemSource>();
 
-							if (submenu != null && source != null) {
-								Debug($"{child.Name} --> {(submenu.ItemsRoot.Target != null ? submenu.ItemsRoot.Target.Name : "<NO TARGET>")}");
-								if (submenu.ItemsRoot.Target == CheckTarget) {
-									Debug("!!!Existing back button found, hooking!!!");
-									existingButton = source;
-									break;
+								if (submenu != null && source != null) {
+									Debug($"{child.Name} --> {(submenu.ItemsRoot.Target != null ? submenu.ItemsRoot.Target.Name : "<NO TARGET>")}");
+									if (submenu.ItemsRoot.Target == CheckTarget) {
+										Debug("!!!Existing back button found, hooking!!!");
+										existingButton = source;
+										break;
+									}
+								} else {
+									Debug($"{child.Name} -/> Not a submenu");
 								}
-							} else {
-								Debug($"{child.Name} -/> Not a submenu");
 							}
 						}
 						Debug("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -246,8 +256,10 @@ public class ContextMenuBackOption : ResoniteMod {
 					Debug("Checked for back buttons");
 
 					bool previousIsRoot = false;
+					Slot? previousSlot = null;
 					if (PreviousMenus.Count > 1) {
-						previousIsRoot = (PreviousMenus[1] == user.GetUserContextMenu().Slot);
+						PreviousMenus[1].SlotRef.TryGetTarget(out previousSlot);
+						previousIsRoot = previousSlot != null && previousSlot == user.GetUserContextMenu().Slot;
 					} else {
 						previousIsRoot = true;
 					}
@@ -264,7 +276,9 @@ public class ContextMenuBackOption : ResoniteMod {
 
 						if ((PreviousMenus.Count > 1) && !previousIsRoot) {
 							ButtonPressEventRelay BackRelay = MenuSlot.AttachComponent<ButtonPressEventRelay>();
-							BackRelay.Target.Value = PreviousMenus[1].ReferenceID;
+							if (previousSlot != null) {
+								BackRelay.Target.Value = previousSlot.ReferenceID;
+							}
 						}
 					} else if (FancyButton != null && Button != null && Button.IsChildOfElement(FancyButton)) {
 						if (Config!.GetValue(AlternateDesign) == true) {
@@ -280,7 +294,9 @@ public class ContextMenuBackOption : ResoniteMod {
 										Debug("?! Existing back button not found ?!");
 									}
 								} else if ((PreviousMenus.Count > 1) && !previousIsRoot) { // previous page
-									BackRelay.Target.Value = PreviousMenus[1].ReferenceID;
+									if (previousSlot != null) {
+										BackRelay.Target.Value = previousSlot.ReferenceID;
+									}
 								} else { // to root
 									BackRelay.Target.Value = RefID.Null;
 								}
@@ -594,7 +610,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					PreviousMenus.Clear();
 				} else if (Config!.GetValue(ShowOnBuiltIn)) {
 					Debug("Built in context menu opened, add root back");
-					PreviousMenus.Insert(0, __instance.LocalUser.GetUserContextMenu().Slot); // Use context menu slot as placeholder for "Root Menu"
+					PreviousMenus.Insert(0, (new WeakReference<Slot>(__instance.LocalUser.GetUserContextMenu().Slot), false)); // Use context menu slot as placeholder for "Root Menu"
 					__state = true;
 				}
 				Tuple<Slot, Button>? FancyItems = TryFancyButton(__instance.LocalUser.GetUserContextMenu());
@@ -681,19 +697,20 @@ public class ContextMenuBackOption : ResoniteMod {
 			if (Config!.GetValue(Enabled) == true) {
 				ContextMenuSubmenu submenu = __instance;
 
-				if (!button.Slot.IsChildOf(__instance.World.LocalUser.GetUserContextMenu().Slot)) {
+				bool isExternal = !button.Slot.IsChildOf(__instance.World.LocalUser.GetUserContextMenu().Slot);
+				if (isExternal) {
 					Debug("Submenu opened from outside source, clearing the history.");
 					PreviousMenus.Clear();
-					return;
 				}
 
 				if ((button != null && button.Slot != null && button.Slot.Tag == "BackOption") || submenu.Slot == null || !ContextMenuSubmenu.IsValidSource(submenu.Slot) || submenu.ItemsRoot.Target == null || !ContextMenuSubmenu.IsValidSource(submenu.ItemsRoot.Target)) {
 					return;
 				}
-				PreviousMenus.Insert(0, submenu.Slot);
+
+				PreviousMenus.Insert(0, (new WeakReference<Slot>(submenu.Slot), isExternal));
 				Debug("There are " + PreviousMenus.Count + " pages to go back to.");
 				Debug("==================================================");
-				PreviousMenus.ForEach(item => Debug(item.Name));
+				PreviousMenus.ForEach(item => Debug((item.SlotRef.TryGetTarget(out var slot) ? slot.Name : "⚠️ null") + $" | External: {item.IsExternal}"));
 				Debug("==================================================");
 			}
 		}
@@ -705,7 +722,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			if (__instance.IsUnderLocalUser) {
 				if (Config!.GetValue(ShowOnBuiltIn)) {
 					Debug("Gizmo options opened, add root back");
-					PreviousMenus.Insert(0, __instance.LocalUser.GetUserContextMenu().Slot); // Use context menu slot as placeholder for "Root Menu"
+					PreviousMenus.Insert(0, (new WeakReference<Slot>(__instance.LocalUser.GetUserContextMenu().Slot), false)); // Use context menu slot as placeholder for "Root Menu"
 				}
 			}
 		}
