@@ -15,7 +15,7 @@ namespace ContextMenuBackOption;
 //More info on creating mods can be found https://github.com/resonite-modding-group/ResoniteModLoader/wiki/Creating-Mods
 //Mod code partially based on https://github.com/XDelta/ResoniteFish (because it's a very simple context menu option mod lol)
 public class ContextMenuBackOption : ResoniteMod {
-	internal const string VERSION_CONSTANT = "2.3.2";
+	internal const string VERSION_CONSTANT = "2.3.3";
 	public override string Name => "ContextMenuBackOption";
 	public override string Author => "Noble";
 	public override string Version => VERSION_CONSTANT;
@@ -695,6 +695,18 @@ public class ContextMenuBackOption : ResoniteMod {
 				Debug("==================================================");
 				PreviousMenus.ForEach(item => Debug(item.Name));
 				Debug("==================================================");
+			}
+		}
+	}
+
+	[HarmonyPatch(typeof(DevTool), "OpenGizmoOptions")]
+	class DevToolOpenGizmoOptionsPatch {
+		public static void Postfix(DevTool __instance, IButton button, ButtonEventData eventData) {
+			if (__instance.IsUnderLocalUser) {
+				if (Config!.GetValue(ShowOnBuiltIn)) {
+					Debug("Gizmo options opened, add root back");
+					PreviousMenus.Insert(0, __instance.LocalUser.GetUserContextMenu().Slot); // Use context menu slot as placeholder for "Root Menu"
+				}
 			}
 		}
 	}
