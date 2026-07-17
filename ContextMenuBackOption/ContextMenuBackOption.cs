@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Linq;
 
 using Elements.Core;
 using FrooxEngine;
@@ -64,11 +65,54 @@ public class ContextMenuBackOption : ResoniteMod {
 
 	public static ModConfiguration? Config;
 
-	static List<(WeakReference<Slot> SlotRef, bool IsExternal)> PreviousMenus = new();
+	static Stack<(WeakReference<Slot> SlotRef, bool IsExternal)> PreviousMenus = new();
 	static List<WeakReference<ContextMenu>> AnimatingMenus = new();
+	class FancyButtonCache {
+		public OutlinedArc? Arc;
+		public RectTransform? IconTransform;
+		public RectTransform? CenterTransform;
 
-	static float lastLerp = 0;
-	static float lastInnerLerp = 0;
+		public float lastLerp = 0;
+		public float lastInnerLerp = 0;
+	}
+
+	static ConditionalWeakTable<ContextMenu, FancyButtonCache> FancyRefs = new();
+
+	public static class SettingsCache {
+		public static bool Enabled { get; private set; } = true;
+		public static bool ShowOnBuiltIn { get; private set; } = false;
+		public static bool ShowOnSingleItemMenus { get; private set; } = false;
+		public static bool AlternateDesign { get; private set; } = false;
+		public static Uri? ButtonIcon { get; private set; } = new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png");
+		public static colorX ButtonColor { get; private set; } = colorX.White;
+		public static string? ButtonText { get; private set; } = "<Back>\n<size=50%><PreviousMenu></size>";
+		public static long ButtonOrder { get; private set; } = -10000;
+		public static float ButtonSize { get; private set; } = 80f;
+		public static float ButtonShrunkenSize { get; private set; } = 40f;
+		public static bool OverrideExistingIcons { get; private set; } = false;
+		public static bool OverrideExistingColors { get; private set; } = false;
+		public static bool OverrideExistingDescs { get; private set; } = false;
+		public static bool OverrideExistingOffset { get; private set; } = false;
+
+		public static void Update() {
+			if (Config == null) return;
+
+			Enabled = Config.GetValue(ContextMenuBackOption.Enabled);
+			ShowOnBuiltIn = Config.GetValue(ContextMenuBackOption.ShowOnBuiltIn);
+			ShowOnSingleItemMenus = Config.GetValue(ContextMenuBackOption.ShowOnSingleItemMenus);
+			AlternateDesign = Config.GetValue(ContextMenuBackOption.AlternateDesign);
+			ButtonIcon = Config.GetValue(ContextMenuBackOption.ButtonIcon);
+			ButtonColor = Config.GetValue(ContextMenuBackOption.ButtonColor);
+			ButtonText = Config.GetValue(ContextMenuBackOption.ButtonText);
+			ButtonOrder = Config.GetValue(ContextMenuBackOption.ButtonOrder);
+			ButtonSize = Config.GetValue(ContextMenuBackOption.ButtonSize);
+			ButtonShrunkenSize = Config.GetValue(ContextMenuBackOption.ButtonShrunkenSize);
+			OverrideExistingIcons = Config.GetValue(ContextMenuBackOption.OverrideExistingIcons);
+			OverrideExistingColors = Config.GetValue(ContextMenuBackOption.OverrideExistingColors);
+			OverrideExistingDescs = Config.GetValue(ContextMenuBackOption.OverrideExistingDescs);
+			OverrideExistingOffset = Config.GetValue(ContextMenuBackOption.OverrideExistingOffset);
+		}
+	}
 
 	static Type INTERACTION_HANDLER_TYPE = TypeHelper.FindType("FrooxEngine.InteractionHandler");
 
@@ -80,10 +124,13 @@ public class ContextMenuBackOption : ResoniteMod {
 		Config = GetConfiguration()!;
 		Config!.Save(true);
 
+		SettingsCache.Update();
+		Config.OnThisConfigurationChanged += (config) => SettingsCache.Update();
+
 		// Call setup method
 		Setup();
 	}
-	#if DEBUG
+#if DEBUG
 	// This is the method that should be used to unload your mod
 	// This means removing patches, clearing memory that may be in use etc.
 	static void BeforeHotReload() {
@@ -105,10 +152,13 @@ public class ContextMenuBackOption : ResoniteMod {
 		Config = modInstance.GetConfiguration()!;
 		Config!.Save(true);
 
+		SettingsCache.Update();
+		Config.OnThisConfigurationChanged += (config) => SettingsCache.Update();
+
 		// Call setup method
 		Setup();
 	}
-	#endif
+#endif
 
 	static void Setup() {
 		// Patch Harmony
@@ -124,12 +174,14 @@ public class ContextMenuBackOption : ResoniteMod {
 			if (PreviousMenus.Count <= 0) {
 				break;
 			}
-			PreviousMenus.RemoveAt(0);
+			PreviousMenus.Pop();
 			removed++;
 			Debug(removed + "removed");
 		}
 		Debug("==================================================");
-		PreviousMenus.ForEach(item => Debug(item.SlotRef.TryGetTarget(out var slot) ? slot.Name : "null"));
+		foreach (var item in PreviousMenus) {
+			Debug(item.SlotRef.TryGetTarget(out var slot) ? slot.Name : "null");
+		}
 		Debug("==================================================");
 	}
 
@@ -142,12 +194,12 @@ public class ContextMenuBackOption : ResoniteMod {
 	}
 
 	public static string GetBackButtonText(User user) {
-		string template = Config != null ? Config.GetValue(ButtonText)! : "<Back>\n<size=50%><PreviousMenu></size>";
+		string template = SettingsCache.ButtonText ?? "<Back>\n<size=50%><PreviousMenu></size>";
 
 		bool previousIsRoot = false;
 		Slot? prevSlot = null;
 		if (PreviousMenus.Count > 1) {
-			PreviousMenus[1].SlotRef.TryGetTarget(out prevSlot);
+			PreviousMenus.ElementAt(1).SlotRef.TryGetTarget(out prevSlot);
 			previousIsRoot = prevSlot != null && prevSlot == user.GetUserContextMenu().Slot;
 		} else {
 			previousIsRoot = true;
@@ -173,21 +225,21 @@ public class ContextMenuBackOption : ResoniteMod {
 			ContextMenu menu = user.GetUserContextMenu();
 			if (menu != null) {
 				Debug($"Trying for fancy button. Menu was found.");
-				Tuple<Slot, Button>? FancyItems = TryFancyButton(menu);
+				(Slot fancyButton, Button buttonComponent)? FancyItems = TryFancyButton(menu);
 				Slot? FancyButton = null;
 				IButton? Button = null;
 				Debug("Tried!");
 
 				if (FancyItems != null) {
 					Debug("Fancy button path");
-					FancyButton = FancyItems.Item1;
-					Button = FancyItems.Item2;
+					FancyButton = FancyItems.Value.fancyButton;
+					Button = FancyItems.Value.buttonComponent;
 				}
 
 				Slot itemRoot = menu._itemsRoot.Target;
 				if (itemRoot.ChildrenCount <= 1) {
 					Debug("Single button menu!");
-					if (!(Config!.GetValue(ShowOnSingleItemMenus))) {
+					if (!SettingsCache.ShowOnSingleItemMenus) {
 						if (FancyButton != null) {
 							FancyButton.ActiveSelf = false;
 						}
@@ -195,7 +247,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					}
 				}
 
-				bool canGoBack = PreviousMenus.Count > 0 && !PreviousMenus.GetFirst().IsExternal;
+				bool canGoBack = PreviousMenus.Count > 0 && !PreviousMenus.Peek().IsExternal;
 
 				if (FancyButton != null) {
 					FancyButton.ActiveSelf = (canGoBack);
@@ -206,11 +258,11 @@ public class ContextMenuBackOption : ResoniteMod {
 					Slot? existingContextMenuButton = null;
 					if (PreviousMenus.Count > 1) { // As far as I know you can't link back to the root menu in vanilla game... i think...
 						Debug("~~~~~~~~~~~~~~~~EXISTING BACK BUTTON CHECK!~~~~~~~~~~~~~~~~");
-						PreviousMenus[0].SlotRef.TryGetTarget(out Slot? currSlot);
+						PreviousMenus.Peek().SlotRef.TryGetTarget(out Slot? currSlot);
 						ContextMenuSubmenu? currentCtxSubmenu = currSlot?.GetComponent<ContextMenuSubmenu>();
 						Slot? CheckOrigin = currentCtxSubmenu != null ? (currentCtxSubmenu.ItemsRoot.Target ?? currSlot) : currSlot;
 
-						PreviousMenus[1].SlotRef.TryGetTarget(out Slot? prevSlot);
+						PreviousMenus.ElementAt(1).SlotRef.TryGetTarget(out Slot? prevSlot);
 						ContextMenuSubmenu? previousCtxSubmenu = prevSlot?.GetComponent<ContextMenuSubmenu>();
 						Slot? CheckTarget = previousCtxSubmenu != null ? (previousCtxSubmenu.ItemsRoot.Target ?? prevSlot) : prevSlot;
 
@@ -260,7 +312,7 @@ public class ContextMenuBackOption : ResoniteMod {
 					bool previousIsRoot = false;
 					Slot? previousSlot = null;
 					if (PreviousMenus.Count > 1) {
-						PreviousMenus[1].SlotRef.TryGetTarget(out previousSlot);
+						PreviousMenus.ElementAt(1).SlotRef.TryGetTarget(out previousSlot);
 						previousIsRoot = previousSlot != null && previousSlot == user.GetUserContextMenu().Slot;
 					} else {
 						previousIsRoot = true;
@@ -269,10 +321,10 @@ public class ContextMenuBackOption : ResoniteMod {
 					if (Button == null && existingButton == null) {
 						Debug("Making own back button...");
 
-						ContextMenuItem MenuItem = menu.AddItem(GetBackButtonText(user), (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png")), (Config != null ? Config.GetValue(ButtonColor)! : colorX.White));
+						ContextMenuItem MenuItem = menu.AddItem(GetBackButtonText(user), SettingsCache.ButtonIcon ?? new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"), SettingsCache.ButtonColor);
 						Slot MenuSlot = MenuItem.Slot;
 						MenuSlot.Tag = "BackOption";
-						MenuSlot.OrderOffset = Config != null ? Config.GetValue(ButtonOrder)! : -10000;
+						MenuSlot.OrderOffset = SettingsCache.ButtonOrder;
 
 						Button = MenuItem.Button;
 
@@ -283,7 +335,7 @@ public class ContextMenuBackOption : ResoniteMod {
 							}
 						}
 					} else if (FancyButton != null && Button != null && Button.IsChildOfElement(FancyButton)) {
-						if (Config!.GetValue(AlternateDesign) == true) {
+						if (SettingsCache.AlternateDesign == true) {
 							ButtonPressEventRelay? BackRelay = (ButtonPressEventRelay?)FancyButton.GetComponentOrAttach<ButtonPressEventRelay>();
 							if (BackRelay != null) {
 								if (existingButton != null) { // use existing button relay and hide
@@ -311,7 +363,7 @@ public class ContextMenuBackOption : ResoniteMod {
 						if (existingContextMenuButton != null) {
 							existingContextMenuButton.Tag = "BackOption";
 
-							if (Config!.GetValue(OverrideExistingIcons) == true) {
+							if (SettingsCache.OverrideExistingIcons == true) {
 								Debug("Finding existing button icon slot.");
 								Slot IconSlot = existingContextMenuButton.FindChild("Image");
 								if (IconSlot != null) {
@@ -323,7 +375,7 @@ public class ContextMenuBackOption : ResoniteMod {
 										// feel like this is a little bit dirty but ah well it works
 										SpriteProvider spriteProvider = IconSlot.AttachComponent<SpriteProvider>();
 										StaticTexture2D texture = IconSlot.AttachComponent<StaticTexture2D>();
-										texture.URL.Value = (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"));
+										texture.URL.Value = SettingsCache.ButtonIcon ?? new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png");
 										spriteProvider.Texture.Target = texture;
 
 										if (ImageComponent.Sprite.ActiveLink != null) {
@@ -333,7 +385,7 @@ public class ContextMenuBackOption : ResoniteMod {
 									}
 								}
 							}
-							if (Config!.GetValue(OverrideExistingColors) == true) {
+							if (SettingsCache.OverrideExistingColors == true) {
 								Debug("Finding existing button data.");
 								ContextMenuItem ItemComponent = existingContextMenuButton.GetComponent<ContextMenuItem>();
 								if (ItemComponent != null) {
@@ -341,10 +393,10 @@ public class ContextMenuBackOption : ResoniteMod {
 									if (ItemComponent.Color.ActiveLink != null) {
 										ItemComponent.Color.ActiveLink.ReleaseLink(undoable: false);
 									}
-									ItemComponent.Color.Value = (Config != null ? Config.GetValue(ButtonColor)! : colorX.White);
+									ItemComponent.Color.Value = SettingsCache.ButtonColor;
 								}
 							}
-							if (Config!.GetValue(OverrideExistingDescs) == true) {
+							if (SettingsCache.OverrideExistingDescs == true) {
 								Debug("Finding existing button text slot.");
 								Slot TextSlot = existingContextMenuButton.FindChild("Text");
 								if (TextSlot != null) {
@@ -359,8 +411,8 @@ public class ContextMenuBackOption : ResoniteMod {
 									}
 								}
 							}
-							if (Config!.GetValue(OverrideExistingOffset) == true) {
-								existingContextMenuButton.OrderOffset = Config != null ? Config.GetValue(ButtonOrder)! : -10000;
+							if (SettingsCache.OverrideExistingOffset == true) {
+								existingContextMenuButton.OrderOffset = SettingsCache.ButtonOrder;
 							}
 						}
 					}
@@ -435,7 +487,7 @@ public class ContextMenuBackOption : ResoniteMod {
 		colorDriverImage.PressColor.Value = colorX.White;
 		colorDriverImage.DisabledColor.Value = colorX.White.SetA(0.53f);
 
-		colorX color = (Config != null ? Config.GetValue(ButtonColor)! : colorX.White);
+		colorX color = SettingsCache.ButtonColor;
 		InteractionElement.ColorDriver colorDriver = button.ColorDrivers.Add();
 		InteractionElement.ColorDriver colorDriver2 = button.ColorDrivers.Add();
 		ColorHSV colorHSV = new ColorHSV(in color);
@@ -455,12 +507,12 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		Slot FancyButtonIcon = FancyButton.FindChild("Icon");
 		StaticTexture2D texture = FancyButtonIcon.GetComponent<StaticTexture2D>();
-		texture.URL.Value = (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"));
+		texture.URL.Value = SettingsCache.ButtonIcon ?? new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png");
 
 		return button;
 	}
 
-	static Slot ConstructFancyButton(Slot RadialMenu) {
+	static Slot ConstructFancyButton(Slot RadialMenu, ContextMenu cacheTo) {
 		Slot FancyButton = RadialMenu.AddSlot("CtxMenuBack");
 		FancyButton.Tag = "BackOption";
 
@@ -471,7 +523,7 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		UI_CircleSegment arcMaterial = RadialMenu.Parent.Parent.GetComponent<UI_CircleSegment>();
 
-		float buttonArcSize = Config != null ? Config.GetValue(ButtonSize)! : 80f;
+		float buttonArcSize = SettingsCache.ButtonSize;
 
 		outlinedArc.Arc.Value = buttonArcSize;
 		outlinedArc.Offset.Value = 230f - ((buttonArcSize-80f)/2);
@@ -490,7 +542,7 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		SpriteProvider spriteProvider = ButtonIconSlot.AttachComponent<SpriteProvider>();
 		StaticTexture2D texture = ButtonIconSlot.AttachComponent<StaticTexture2D>();
-		texture.URL.Value = (Config != null ? Config.GetValue(ButtonIcon)! : new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png"));
+		texture.URL.Value = SettingsCache.ButtonIcon ?? new Uri("resdb:///66a1939382fbc85ebbd3cc80b812b71bb00506c52ca94cced1d21e76fbe7ef1c.png");
 		spriteProvider.Texture.Target = texture;
 
 		Image image = ButtonIconSlot.AttachComponent<Image>();
@@ -501,10 +553,18 @@ public class ContextMenuBackOption : ResoniteMod {
 		dynVar.VariableName.Value = "User/ContextMenuBackOption.FancyButton";
 
 		SetupFancyButtonComponent(FancyButton, image, outlinedArc, dynVar);
+
+		FancyButtonCache refs = new FancyButtonCache {
+			Arc = outlinedArc,
+			IconTransform = rectTransform2,
+			CenterTransform = null
+		};
+		FancyRefs.AddOrUpdate(cacheTo, refs);
+
 		return FancyButton;
 	}
 
-	private static Tuple<Slot, Button>? TryFancyButton(ContextMenu menu) {
+	private static (Slot fancyButton, Button buttonComponent)? TryFancyButton(ContextMenu menu) {
 		Slot? RadialMenu = menu.Slot.FindChild("Radial Menu", false, false, 2);
 		if (RadialMenu != null) {
 			Debug("Found radial, now look for button");
@@ -513,15 +573,15 @@ public class ContextMenuBackOption : ResoniteMod {
 			Debug($"Fancy Button Found: {FancyButton != null}");
 			if (FancyButton == null) { // There's probably a way to do this 100,000,000x better but I dunno how so :3
 				Debug("No button found");
-				if (Config!.GetValue(Enabled) == true && Config!.GetValue(AlternateDesign) == true) {
+				if (SettingsCache.Enabled == true && SettingsCache.AlternateDesign == true) {
 					// Manually construct the UI (horrible)
-					FancyButton = ConstructFancyButton(RadialMenu);
+					FancyButton = ConstructFancyButton(RadialMenu, menu);
 					buttonComponent = FancyButton.GetComponent<Button>();
 					Debug("Made fancy button");
 				} else {
 					return null;
 				}
-			} else if (Config!.GetValue(Enabled) == true && Config!.GetValue(AlternateDesign) == true) {
+			} else if (SettingsCache.Enabled == true && SettingsCache.AlternateDesign == true) {
 				Debug("Existing button found, look for icon");
 				Slot? FancyButtonImage = FancyButton.FindChild("Icon", false, false, 1);
 				if (FancyButtonImage != null) {
@@ -556,7 +616,7 @@ public class ContextMenuBackOption : ResoniteMod {
 				} else {
 					Warn("Could not find fancy button image, recreating the button entirely!");
 					FancyButton.Destroy();
-					FancyButton = ConstructFancyButton(RadialMenu);
+					FancyButton = ConstructFancyButton(RadialMenu, menu);
 					buttonComponent = FancyButton.GetComponent<Button>();
 				}
 			} else {
@@ -565,56 +625,64 @@ public class ContextMenuBackOption : ResoniteMod {
 				return null;
 			}
 			Debug("Returning tuple");
-			return new Tuple<Slot, Button>(FancyButton, buttonComponent);
+			return (FancyButton, buttonComponent);
 		}
 		Debug("Truly null");
 		return null;
 	}
 	static void UpdateFancyButtonVisuals(ContextMenu ctx) {
-		Slot? RadialMenu = ctx.Slot.FindChild("Radial Menu", false, false, 2);
-		if (RadialMenu != null) {
-			Slot? FancyButton = RadialMenu.FindChild("CtxMenuBack", false, false, 1);
-			if (FancyButton != null) {
-				Slot? FancyButtonIcon = FancyButton.FindChild("Icon", false, false, 1);
-				if (FancyButtonIcon != null) {
-					Slot? CenterCircle = RadialMenu.FindChild("Center Circle", false, false, 1); // is there a better way to do this?
-					if (CenterCircle != null) {
-						OutlinedArc fancyArc = FancyButton.GetComponent<OutlinedArc>();
-						RectTransform fancyIconTransform = FancyButtonIcon.GetComponent<RectTransform>();
-						RectTransform centerTransform = CenterCircle.GetComponent<RectTransform>();
-						if (fancyArc != null && centerTransform != null) {
-							float innerLerp = 0;
-							if (ctx._innerLerp != null) {
-								innerLerp = ctx._innerLerp.Value;
-							}
+		if (ctx == null) return;
 
-							float buttonArcSize = Config != null ? Config.GetValue(ButtonSize)! : 80f;
-							float buttonSmallSize = Config != null ? Config.GetValue(ButtonShrunkenSize)! : 40f;
+		OutlinedArc? fancyArc = null;
+		RectTransform? fancyIconTransform = null;
+		RectTransform? centerTransform = null;
 
-							float buttonArcOffset = 230f - ((buttonArcSize - 80f) / 2);
-							float buttonArcSmallOffset = 250f - ((buttonSmallSize - 40f) / 2);
+		Slot? CenterCircle = ctx._innerCircle.Target != null ? ctx._innerCircle.Target.Slot : null;
+		if (CenterCircle == null) return;
 
-							if (innerLerp >= 0) {
-								fancyArc.InnerRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .675f, .6f) + MathX.Remap(innerLerp, 0f, 1f, 0f, .2f);
-								fancyArc.OuterRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .925f, 1f);
-								fancyArc.RoundedCornerRadius.Value = MathX.Remap(innerLerp, 0f, 1f, 14f, 8f);
-								fancyArc.Arc.Value = MathX.Remap(innerLerp, 0f, 1f, buttonArcSize, buttonSmallSize);
-								fancyArc.Offset.Value = MathX.Remap(innerLerp, 0f, 1f, buttonArcOffset, buttonArcSmallOffset);
-								fancyIconTransform.AnchorMin.Value = new float2(0f, 0.025f);
-								fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, 0f, 1f, 1f, 1f), MathX.Remap(innerLerp, 0f, 1f, 0.175f, 0.075f));
-							} else {
-								fancyArc.InnerRadiusRatio.Value = .6f;
-								fancyArc.OuterRadiusRatio.Value = 1f;
-								fancyArc.RoundedCornerRadius.Value = 14f;
-								fancyArc.Arc.Value = MathX.Remap(innerLerp, -1f, 0f, 0f, buttonArcSize);
-								fancyArc.Offset.Value = MathX.Remap(innerLerp, -1f, 0f, buttonArcOffset + (buttonArcSize/2f), buttonArcOffset);
-								fancyIconTransform.AnchorMin.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 0f, 0f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.025f));
-								fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 1f, 1f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.175f));
-							}
-						}
-					}
-				}
-			}
+		if (!FancyRefs.TryGetValue(ctx, out FancyButtonCache? refs) || refs == null) {
+			return;
+		}
+
+		fancyArc = refs.Arc;
+		fancyIconTransform = refs.IconTransform;
+		centerTransform = refs.CenterTransform;
+		if (centerTransform == null) {
+			centerTransform = CenterCircle.GetComponent<RectTransform>();
+		}
+
+		if ((fancyArc == null || fancyArc.IsDestroyed || fancyArc.IsDisposed) || (fancyIconTransform == null || fancyIconTransform.IsDestroyed || fancyIconTransform.IsDisposed) || (centerTransform == null || centerTransform.IsDestroyed || centerTransform.IsDisposed)) {
+			FancyRefs.Remove(ctx);
+			return;
+		}
+
+		float innerLerp = 0;
+		if (ctx._innerLerp != null) {
+			innerLerp = ctx._innerLerp.Value;
+		}
+
+		float buttonArcSize = SettingsCache.ButtonSize;
+		float buttonSmallSize = SettingsCache.ButtonShrunkenSize;
+
+		float buttonArcOffset = 230f - ((buttonArcSize - 80f) / 2);
+		float buttonArcSmallOffset = 250f - ((buttonSmallSize - 40f) / 2);
+
+		if (innerLerp >= 0) {
+			fancyArc.InnerRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .675f, .6f) + MathX.Remap(innerLerp, 0f, 1f, 0f, .2f);
+			fancyArc.OuterRadiusRatio.Value = MathX.Remap(ctx.Lerp, 0f, 1f, .925f, 1f);
+			fancyArc.RoundedCornerRadius.Value = MathX.Remap(innerLerp, 0f, 1f, 14f, 8f);
+			fancyArc.Arc.Value = MathX.Remap(innerLerp, 0f, 1f, buttonArcSize, buttonSmallSize);
+			fancyArc.Offset.Value = MathX.Remap(innerLerp, 0f, 1f, buttonArcOffset, buttonArcSmallOffset);
+			fancyIconTransform.AnchorMin.Value = new float2(0f, 0.025f);
+			fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, 0f, 1f, 1f, 1f), MathX.Remap(innerLerp, 0f, 1f, 0.175f, 0.075f));
+		} else {
+			fancyArc.InnerRadiusRatio.Value = .6f;
+			fancyArc.OuterRadiusRatio.Value = 1f;
+			fancyArc.RoundedCornerRadius.Value = 14f;
+			fancyArc.Arc.Value = MathX.Remap(innerLerp, -1f, 0f, 0f, buttonArcSize);
+			fancyArc.Offset.Value = MathX.Remap(innerLerp, -1f, 0f, buttonArcOffset + (buttonArcSize / 2f), buttonArcOffset);
+			fancyIconTransform.AnchorMin.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 0f, 0f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.025f));
+			fancyIconTransform.AnchorMax.Value = new float2(MathX.Remap(innerLerp, -1f, 0f, 1f, 1f), MathX.Remap(innerLerp, -1f, 0f, 0.1f, 0.175f));
 		}
 	}
 
@@ -623,17 +691,17 @@ public class ContextMenuBackOption : ResoniteMod {
 		public static void Prefix(InteractionHandler __instance, InteractionHandler.MenuOptions options, out bool __state) { // This one fires for Context Menu Root as well as the built-in ones (e.g. Locomotion, Grab Type)
 			__state = false;
 			if (__instance.IsOwnedByLocalUser) {
-				if (options == InteractionHandler.MenuOptions.Default || (Config!.GetValue(ShowOnBuiltIn) == false)) {
+				if (options == InteractionHandler.MenuOptions.Default || (SettingsCache.ShowOnBuiltIn == false)) {
 					Debug("Context menu root opened, clear previous menus");
 					PreviousMenus.Clear();
-				} else if (Config!.GetValue(ShowOnBuiltIn)) {
+				} else if (SettingsCache.ShowOnBuiltIn) {
 					Debug("Built in context menu opened, add root back");
-					PreviousMenus.Insert(0, (new WeakReference<Slot>(__instance.LocalUser.GetUserContextMenu().Slot), false)); // Use context menu slot as placeholder for "Root Menu"
+					PreviousMenus.Push((new WeakReference<Slot>(__instance.LocalUser.GetUserContextMenu().Slot), false)); // Use context menu slot as placeholder for "Root Menu"
 					__state = true;
 				}
-				Tuple<Slot, Button>? FancyItems = TryFancyButton(__instance.LocalUser.GetUserContextMenu());
+				(Slot fancyButton, Button buttonComponent)? FancyItems = TryFancyButton(__instance.LocalUser.GetUserContextMenu());
 				if (FancyItems != null) {
-					FancyItems.Item1.ActiveSelf = (PreviousMenus.Count > 0);
+					FancyItems.Value.fancyButton.ActiveSelf = (PreviousMenus.Count > 0);
 				}
 			}
 		}
@@ -654,7 +722,7 @@ public class ContextMenuBackOption : ResoniteMod {
 	class ContextMenuConfirmActionPatch {
 		public static void Prefix(User user, IWorldElement summoner, Slot pointer, LocaleString actionName, Uri actionIcon, colorX actionColor, ButtonEventHandler actionCallback, bool hidden = false) { // This fires for actions that require confirmation (e.g. entering an anchor, equipping an avatar/tool...)
 			if (user.IsLocalUser) {
-				if (Config!.GetValue(Enabled) == true) {
+				if (SettingsCache.Enabled == true) {
 					Debug("Confirmation opened, clear previous pages");
 					PreviousMenus.Clear();
 				}
@@ -669,7 +737,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			InteractionHandler commonTool = pressingSlot.FindInteractionHandler();
 			User user = commonTool.Owner;
 			if (user.IsLocalUser) {
-				if (Config!.GetValue(Enabled) == true) {
+				if (SettingsCache.Enabled == true) {
 					Debug("World orb opened, clear previous pages");
 					PreviousMenus.Clear();
 				}
@@ -684,7 +752,7 @@ public class ContextMenuBackOption : ResoniteMod {
 			InteractionHandler commonTool = pressingSlot.FindInteractionHandler();
 			User user = commonTool.Owner;
 			if (user.IsLocalUser) {
-				if (Config!.GetValue(Enabled) == true) {
+				if (SettingsCache.Enabled == true) {
 					Debug("Inspector member opened, clear previous pages");
 					PreviousMenus.Clear();
 				}
@@ -696,7 +764,7 @@ public class ContextMenuBackOption : ResoniteMod {
 	class ContextMenuOpenAnyPatch {
 		public static async void Postfix(User user, IWorldElement summoner, Slot pointer, ContextMenuOptions options = default(ContextMenuOptions)) { // This one fires for ANY context menu, including custom ones. Does not fire for root menus.
 			if (user.IsLocalUser) {
-				if (Config!.GetValue(Enabled) == true) {
+				if (SettingsCache.Enabled == true) {
 					Debug("Any menu was opened");
 					ContextMenu menu = user.GetUserContextMenu();
 					if (menu != null) {
@@ -712,7 +780,7 @@ public class ContextMenuBackOption : ResoniteMod {
 	[HarmonyPatch(typeof(ContextMenuSubmenu), "Pressed")]
 	class SubMenuPressPatch {
 		public static void Prefix(ContextMenuSubmenu __instance, IButton button, ButtonEventData eventData) { // This fires when you click on a submenu.
-			if (Config!.GetValue(Enabled) == true) {
+			if (SettingsCache.Enabled == true) {
 				ContextMenuSubmenu submenu = __instance;
 
 				bool isExternal = !button.Slot.IsChildOf(__instance.World.LocalUser.GetUserContextMenu().Slot);
@@ -725,10 +793,12 @@ public class ContextMenuBackOption : ResoniteMod {
 					return;
 				}
 
-				PreviousMenus.Insert(0, (new WeakReference<Slot>(submenu.Slot), isExternal));
+				PreviousMenus.Push((new WeakReference<Slot>(submenu.Slot), isExternal));
 				Debug("There are " + PreviousMenus.Count + " pages to go back to.");
 				Debug("==================================================");
-				PreviousMenus.ForEach(item => Debug((item.SlotRef.TryGetTarget(out var slot) ? slot.Name : "⚠️ null") + $" | External: {item.IsExternal}"));
+				foreach (var item in PreviousMenus) {
+					Debug((item.SlotRef.TryGetTarget(out var slot) ? slot.Name : "⚠️ null") + $" | External: {item.IsExternal}");
+				}
 				Debug("==================================================");
 			}
 		}
@@ -738,9 +808,9 @@ public class ContextMenuBackOption : ResoniteMod {
 	class DevToolOpenGizmoOptionsPatch {
 		public static void Postfix(DevTool __instance, IButton button, ButtonEventData eventData) {
 			if (__instance.IsUnderLocalUser) {
-				if (Config!.GetValue(ShowOnBuiltIn)) {
+				if (SettingsCache.ShowOnBuiltIn) {
 					Debug("Gizmo options opened, add root back");
-					PreviousMenus.Insert(0, (new WeakReference<Slot>(__instance.LocalUser.GetUserContextMenu().Slot), false)); // Use context menu slot as placeholder for "Root Menu"
+					PreviousMenus.Push((new WeakReference<Slot>(__instance.LocalUser.GetUserContextMenu().Slot), false)); // Use context menu slot as placeholder for "Root Menu"
 				}
 			}
 		}
@@ -750,23 +820,25 @@ public class ContextMenuBackOption : ResoniteMod {
 	class ContextMenuUpdatePatch {
 		public static void Postfix(ContextMenu __instance) { // For animating the fancy button properly.
 			if (__instance.IsUnderLocalUser) {
-				if (Config!.GetValue(Enabled) && Config!.GetValue(AlternateDesign)) {
+				if (SettingsCache.Enabled && SettingsCache.AlternateDesign) {
 					if (__instance.IsVisible) {
-						bool updateRequired = false;
-						if (__instance.Lerp != lastLerp) {
-							lastLerp = __instance.Lerp;
-							updateRequired = true;
-						}
-						float innerLerp = 0;
-						if (__instance._innerLerp != null) {
-							innerLerp = __instance._innerLerp.Value;
-						}
-						if (innerLerp != lastInnerLerp) {
-							lastInnerLerp = innerLerp;
-							updateRequired = true;
-						}
-						if (updateRequired) {
-							UpdateFancyButtonVisuals(__instance);
+						if (FancyRefs.TryGetValue(__instance, out var refs) && refs != null) {
+							bool updateRequired = false;
+
+							if (__instance.Lerp != refs.lastLerp) {
+								refs.lastLerp = __instance.Lerp;
+								updateRequired = true;
+							}
+
+							float innerLerp = __instance._innerLerp != null ? __instance._innerLerp.Value : 0f;
+							if (innerLerp != refs.lastInnerLerp) {
+								refs.lastInnerLerp = innerLerp;
+								updateRequired = true;
+							}
+
+							if (updateRequired) {
+								UpdateFancyButtonVisuals(__instance);
+							}
 						}
 					}
 				}
