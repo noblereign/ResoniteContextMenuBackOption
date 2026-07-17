@@ -193,7 +193,6 @@ public class ContextMenuBackOption : ResoniteMod {
 				}
 
 				bool canGoBack = PreviousMenus.Count > 0 && !PreviousMenus.GetFirst().IsExternal;
-				Debug(PreviousMenus.GetFirst());
 
 				if (FancyButton != null) {
 					FancyButton.ActiveSelf = (canGoBack);
