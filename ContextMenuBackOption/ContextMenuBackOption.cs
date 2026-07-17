@@ -398,7 +398,7 @@ public class ContextMenuBackOption : ResoniteMod {
 
 		foreach (var weakRef in AnimatingMenus) {
 			if (weakRef.TryGetTarget(out var target) && target == menu) {
-				Debug("Menu is already animating!! Ignoring handlebuttonafteranimation call");
+				Warn("Menu is already animating!! Ignoring handlebuttonafteranimation call");
 				return;
 			}
 		}
