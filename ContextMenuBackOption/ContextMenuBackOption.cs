@@ -65,6 +65,8 @@ public class ContextMenuBackOption : ResoniteMod {
 	public static ModConfiguration? Config;
 
 	static List<(WeakReference<Slot> SlotRef, bool IsExternal)> PreviousMenus = new();
+	static List<WeakReference<ContextMenu>> AnimatingMenus = new();
+
 	static float lastLerp = 0;
 	static float lastInnerLerp = 0;
 
@@ -115,7 +117,8 @@ public class ContextMenuBackOption : ResoniteMod {
 	}
 
 	static void RemovePreviousPage(IButton button, ButtonEventData eventData) {
-		Debug("Clicked, removing entries...");
+		button.LocalPressed -= RemovePreviousPage; // make sure we can only remove previous page once per button
+		Debug("Clicked, removing entries..."); 
 		int removed = 0;
 		while (removed < 1) {
 			if (PreviousMenus.Count <= 0) {
@@ -391,15 +394,31 @@ public class ContextMenuBackOption : ResoniteMod {
 	}
 
 	public static async Task HandleButtonAfterAnimation(ContextMenu menu, User user, IWorldElement summoner, Slot pointer, ContextMenuOptions options = default(ContextMenuOptions)) {
-		Debug("Waiting...");
-		while ((menu._lerp.Value > 0f) && menu != null) {
-			await default(NextUpdate);
+		AnimatingMenus.RemoveAll(wr => !wr.TryGetTarget(out _));
+
+		foreach (var weakRef in AnimatingMenus) {
+			if (weakRef.TryGetTarget(out var target) && target == menu) {
+				Debug("Menu is already animating!! Ignoring handlebuttonafteranimation call");
+				return;
+			}
 		}
-		if (menu != null) {
-			Debug("Button will now be handled.");
-			GeneralButtonHandler(user, summoner, pointer, options);
-		} else {
-			Warn("Cannot handle button, menu became null!");
+
+		WeakReference<ContextMenu> menuRef = new WeakReference<ContextMenu>(menu);
+		AnimatingMenus.Add(menuRef);
+
+		Debug("Waiting...");
+		try {
+			while ((menu._lerp.Value > 0f) && menu != null) {
+				await default(NextUpdate);
+			}
+			if (menu != null) {
+				Debug("Button will now be handled.");
+				GeneralButtonHandler(user, summoner, pointer, options);
+			} else {
+				Warn("Cannot handle button, menu became null!");
+			}
+		} finally {
+			AnimatingMenus.Remove(menuRef);
 		}
 	}
 
